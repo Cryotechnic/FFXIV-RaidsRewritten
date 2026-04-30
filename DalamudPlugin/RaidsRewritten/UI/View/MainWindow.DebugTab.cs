@@ -24,7 +24,6 @@ namespace RaidsRewritten.UI.View;
 
 public partial class MainWindow
 {
-#if DEBUG
     private int debugModelCharaId = 292;
     private Entity debugSpawnedModel = default;
 
@@ -42,17 +41,22 @@ public partial class MainWindow
             .Set(new TimelineBase(0))
             .Add<Attack>();
     }
-#endif
+
+    private static void SameLineIfFits(string nextLabel)
+    {
+        var style = ImGui.GetStyle();
+        var displayLabel = nextLabel.Contains("##") ? nextLabel[..nextLabel.IndexOf("##")] : nextLabel;
+        var nextWidth = ImGui.CalcTextSize(displayLabel).X + style.FramePadding.X * 2;
+        if (ImGui.GetItemRectMax().X + style.ItemSpacing.X + nextWidth < ImGui.GetContentRegionMax().X)
+            ImGui.SameLine();
+    }
 
     private void DrawDebugTab()
     {
         using var debugTab = ImRaii.TabItem("Debug");
         if (!debugTab) return;
 
-        var debug = false;
-#if DEBUG
-        debug = true;
-#endif
+        var debug = true;
 
         if (debug)
         {
@@ -158,12 +162,12 @@ public partial class MainWindow
         }
         if (debug)
         {
-            ImGui.SameLine();
+            SameLineIfFits("Clear All Statuses");
             if (ImGui.Button("Clear All Statuses"))
             {
                 this.World.DeleteWith<Condition.Component>();
             }
-            ImGui.SameLine();
+            SameLineIfFits("Clear All Models");
             if (ImGui.Button("Clear All Models"))
             {
                 this.World.DeleteWith<Model>();
@@ -178,7 +182,7 @@ public partial class MainWindow
                 this.logger.Info($"Player position:{player.Position}, address:0x{player.Address:X}, entityId:0x{player.EntityId:X}, gameObjectId:0x{player.GameObjectId:X}");
             }
         }
-        ImGui.SameLine();
+        SameLineIfFits("Print Target Data");
         if (ImGui.Button("Print Target Data"))
         {
             var player = this.dalamud.ObjectTable.LocalPlayer;
@@ -213,7 +217,7 @@ public partial class MainWindow
                     Bind.ApplyToTarget(e, 3.0f);
                 });
             }
-            ImGui.SameLine();
+            SameLineIfFits("Knockback");
             if (ImGui.Button("Knockback"))
             {
                 commonQueries.LocalPlayerQuery.Each((Entity e, ref Player.Component pc) =>
@@ -223,7 +227,7 @@ public partial class MainWindow
                     Knockback.ApplyToTarget(e, direction, 2.0f, true);
                 });
             }
-            ImGui.SameLine();
+            SameLineIfFits("Stun");
             if (ImGui.Button("Stun"))
             {
                 commonQueries.LocalPlayerQuery.Each((Entity e, ref Player.Component pc) =>
@@ -231,7 +235,7 @@ public partial class MainWindow
                     Stun.ApplyToTarget(e, 3.0f);
                 });
             }
-            ImGui.SameLine();
+            SameLineIfFits("Paralysis");
             if (ImGui.Button("Paralysis"))
             {
                 commonQueries.LocalPlayerQuery.Each((Entity e, ref Player.Component pc) =>
@@ -239,7 +243,7 @@ public partial class MainWindow
                     Paralysis.ApplyToTarget(e, 5.0f, 3.0f, 1.0f);
                 });
             }
-            ImGui.SameLine();
+            SameLineIfFits("Heavy");
             if (ImGui.Button("Heavy"))
             {
                 commonQueries.LocalPlayerQuery.Each((Entity e, ref Player.Component pc) =>
@@ -247,7 +251,7 @@ public partial class MainWindow
                     Heavy.ApplyToTarget(e, 5.0f);
                 });
             }
-            ImGui.SameLine();
+            SameLineIfFits("Pacify");
             if (ImGui.Button("Pacify"))
             {
                 commonQueries.LocalPlayerQuery.Each((Entity e, ref Player.Component pc) =>
@@ -255,7 +259,7 @@ public partial class MainWindow
                     Pacify.ApplyToTarget(e, 5.0f);
                 });
             }
-            ImGui.SameLine();
+            SameLineIfFits("Blind");
             if (ImGui.Button("Blind"))
             {
                 commonQueries.LocalPlayerQuery.Each((Entity e, ref Player.Component pc) =>
@@ -271,15 +275,7 @@ public partial class MainWindow
                     Sleep.ApplyToTarget(e, 3.0f);
                 });
             }
-            ImGui.SameLine();
-            if (ImGui.Button("Accel Bomb"))
-            {
-                commonQueries.LocalPlayerQuery.Each((Entity e, ref Player.Component pc) =>
-                {
-                    AccelerationBomb.ApplyToTarget(e, 5.0f);
-                });
-            }
-            ImGui.SameLine();
+            SameLineIfFits("Hysteria");
             if (ImGui.Button("Hysteria"))
             {
                 commonQueries.LocalPlayerQuery.Each((Entity e, ref Player.Component pc) =>
@@ -288,7 +284,7 @@ public partial class MainWindow
                 });
             }
 
-            ImGui.SameLine();
+            SameLineIfFits("Heavy (e)");
 
             if (ImGui.Button("Heavy (e)"))
             {
@@ -384,7 +380,7 @@ public partial class MainWindow
                     }
                 }
             }
-            ImGui.SameLine();
+            SameLineIfFits("Fan Omen");
             if (ImGui.Button("Fan Omen"))
             {
                 var player = this.dalamud.ObjectTable.LocalPlayer;
@@ -398,7 +394,7 @@ public partial class MainWindow
                     }
                 }
             }
-            ImGui.SameLine();
+            SameLineIfFits("Rect Omen");
             if (ImGui.Button("Rect Omen"))
             {
                 var player = this.dalamud.ObjectTable.LocalPlayer;
@@ -412,7 +408,7 @@ public partial class MainWindow
                     }
                 }
             }
-            ImGui.SameLine();
+            SameLineIfFits("Star Omen");
             if (ImGui.Button("Star Omen"))
             {
                 var player = this.dalamud.ObjectTable.LocalPlayer;
@@ -468,7 +464,7 @@ public partial class MainWindow
 
             if (debug)
             {
-                ImGui.SameLine();
+                SameLineIfFits("Spawn Ball");
                 if (ImGui.Button("Spawn Ball"))
                 {
                     var player = this.dalamud.ObjectTable.LocalPlayer;
@@ -484,7 +480,7 @@ public partial class MainWindow
                         }
                     }
                 }
-                ImGui.SameLine();
+                SameLineIfFits("LightningCorridor");
                 if (ImGui.Button("LightningCorridor"))
                 {
                     var player = this.dalamud.ObjectTable.LocalPlayer;
@@ -510,7 +506,7 @@ public partial class MainWindow
                         }
                     }
                 }
-                ImGui.SameLine();
+                SameLineIfFits("Row of Exaflares");
                 if (ImGui.Button("Row of Exaflares"))
                 {
                     var player = this.dalamud.ObjectTable.LocalPlayer;
@@ -549,7 +545,7 @@ public partial class MainWindow
                     }
                 }
 
-                ImGui.SameLine();
+                SameLineIfFits("Dreadknight With Tether");
 
                 if (ImGui.Button("Dreadknight With Tether"))
                 {
@@ -620,7 +616,7 @@ public partial class MainWindow
                     }
                 }
 
-                ImGui.SameLine();
+                SameLineIfFits("ADS Stepped Leader");
 
                 if (ImGui.Button("ADS Stepped Leader"))
                 {
@@ -677,7 +673,7 @@ public partial class MainWindow
                     }
                 }
 
-                ImGui.SameLine();
+                SameLineIfFits("Far Tether to Target");
 
                 if (ImGui.Button("Far Tether to Target"))
                 {
@@ -722,7 +718,7 @@ public partial class MainWindow
                         }
                     }
                 }
-                ImGui.SameLine();
+                SameLineIfFits("Star");
                 if (ImGui.Button("Star"))
                 {
                     var player = this.dalamud.ObjectTable.LocalPlayer;
@@ -758,7 +754,7 @@ public partial class MainWindow
                     }
                 }
 
-                ImGui.SameLine();
+                SameLineIfFits("Donut Tornado");
 
                 if (ImGui.Button("Donut Tornado"))
                 {
@@ -790,7 +786,7 @@ public partial class MainWindow
                     }
                 }
 
-                ImGui.SameLine();
+                SameLineIfFits("Transition Melusine");
 
                 if (ImGui.Button("Transition Melusine"))
                 {
@@ -806,7 +802,7 @@ public partial class MainWindow
                     }
                 }
 
-                ImGui.SameLine();
+                SameLineIfFits("Transition Kaliya");
 
                 if (ImGui.Button("Transition Kaliya"))
                 {
@@ -830,7 +826,7 @@ public partial class MainWindow
                         Temperature.SetTemperature(e);
                     });
                 }
-                ImGui.SameLine();
+                SameLineIfFits("Incr Heat");
                 if (ImGui.Button("Incr Heat"))
                 {
                     commonQueries.LocalPlayerQuery.Each((Entity e, ref Player.Component pc) =>
@@ -838,7 +834,7 @@ public partial class MainWindow
                         Temperature.HeatChangedEvent(e, 50);
                     });
                 }
-                ImGui.SameLine();
+                SameLineIfFits("Decr Heat");
                 if (ImGui.Button("Decr Heat"))
                 {
                     commonQueries.LocalPlayerQuery.Each((Entity e, ref Player.Component pc) =>
@@ -861,27 +857,7 @@ public partial class MainWindow
             }
         }
 
-        if (debug && ImGui.CollapsingHeader("Entity Spawner"))
-        {
-#if DEBUG
-            ImGui.SetNextItemWidth(120);
-            ImGui.InputInt("ModelCharaId", ref debugModelCharaId);
-            ImGui.SameLine();
-            if (ImGui.ArrowButton("##mcharaDec", ImGuiDir.Left)) { debugModelCharaId--; DebugSpawnModel(); }
-            ImGui.SameLine();
-            if (ImGui.ArrowButton("##mcharaInc", ImGuiDir.Right)) { debugModelCharaId++; DebugSpawnModel(); }
-            ImGui.SameLine();
-            if (ImGui.Button("Spawn Model")) DebugSpawnModel();
-            ImGui.SameLine();
-            if (ImGui.Button("Despawn") && debugSpawnedModel.IsValid())
-            {
-                debugSpawnedModel.Destruct();
-                debugSpawnedModel = default;
-            }
-#endif
-        }
-
-        if (ImGui.CollapsingHeader("Test Attacks (Networked)"))
+if (ImGui.CollapsingHeader("Test Attacks (Networked)"))
         {
             this.networkClientUi.DrawConfig();
             using (ImRaii.Disabled(!this.networkClient.IsConnected))
@@ -906,7 +882,7 @@ public partial class MainWindow
                         }
                     }).SafeFireAndForget();
                 }
-                ImGui.SameLine();
+                SameLineIfFits("Enum");
                 if (ImGui.Button("Enum"))
                 {
                     this.networkClient.SendAsync(new Message
@@ -939,6 +915,92 @@ public partial class MainWindow
         {
             if (ImGui.CollapsingHeader("Models"))
             {
+                if (ImGui.CollapsingHeader("Encounter Override"))
+                {
+                    if (ImGui.Button("Clear Override"))
+                    {
+                        encounterManager.ForceActivateEncounter(null);
+                    }
+
+                    foreach (var enc in encounterManager.Encounters)
+                    {
+                        SameLineIfFits(enc.Name);
+                        if (ImGui.Button(enc.Name))
+                        {
+                            encounterManager.ForceActivateEncounter(enc);
+                        }
+                    }
+
+                    ImGui.TextColored(new Vector4(1, 1, 0, 1), "Active: " + (encounterManager.ActiveEncounter?.Name ?? "None"));
+                }
+
+                if (encounterManager.ActiveEncounter != null && ImGui.CollapsingHeader("Mechanic Triggers"))
+                {
+                    ImGui.Text("Global Events:");
+                    if (ImGui.Button("Combat Start"))
+                    {
+                        foreach (var mechanic in encounterManager.ActiveEncounter.GetMechanics())
+                        {
+                            mechanic.OnCombatStart();
+                        }
+                    }
+                    SameLineIfFits("Combat End");
+                    if (ImGui.Button("Combat End"))
+                    {
+                        foreach (var mechanic in encounterManager.ActiveEncounter.GetMechanics())
+                        {
+                            mechanic.OnCombatEnd();
+                        }
+                    }
+                    SameLineIfFits("Director: Commence");
+                    if (ImGui.Button("Director: Commence"))
+                    {
+                        encounterManager.ActiveEncounter.IncrementRngSeed();
+                        foreach (var mechanic in encounterManager.ActiveEncounter.GetMechanics())
+                        {
+                            mechanic.OnDirectorUpdate(DirectorUpdateCategory.Commence);
+                        }
+                    }
+                    SameLineIfFits("Director: Wipe");
+                    if (ImGui.Button("Director: Wipe"))
+                    {
+                        foreach (var mechanic in encounterManager.ActiveEncounter.GetMechanics())
+                        {
+                            mechanic.OnDirectorUpdate(DirectorUpdateCategory.Wipe);
+                        }
+                    }
+
+                    ImGui.Separator();
+                    ImGui.Text("Individual Mechanics:");
+                    foreach (var mechanic in encounterManager.ActiveEncounter.GetMechanics())
+                    {
+                        var name = mechanic.GetType().Name;
+                        if (ImGui.TreeNode(name))
+                        {
+                            if (ImGui.Button($"Simulate##{name}"))
+                            {
+                                mechanic.DebugSimulate();
+                            }
+                            SameLineIfFits($"OnCombatStart##{name}");
+                            if (ImGui.Button($"OnCombatStart##{name}"))
+                            {
+                                mechanic.OnCombatStart();
+                            }
+                            SameLineIfFits($"OnCombatEnd##{name}");
+                            if (ImGui.Button($"OnCombatEnd##{name}"))
+                            {
+                                mechanic.OnCombatEnd();
+                            }
+                            SameLineIfFits($"Reset##{name}");
+                            if (ImGui.Button($"Reset##{name}"))
+                            {
+                                mechanic.Reset();
+                            }
+                            ImGui.TreePop();
+                        }
+                    }
+                }
+
                 if (ImGui.Button("Chefbingus"))
                 {
                     var player = this.dalamud.ObjectTable.LocalPlayer;
@@ -950,6 +1012,21 @@ public partial class MainWindow
                                 .Set(new Rotation(player.Rotation));
                         }
                     }
+                }
+
+                ImGui.SetNextItemWidth(120);
+                ImGui.InputInt("ModelCharaId", ref debugModelCharaId);
+                ImGui.SameLine();
+                if (ImGui.ArrowButton("##mcharaDec", ImGuiDir.Left)) { debugModelCharaId--; DebugSpawnModel(); }
+                ImGui.SameLine();
+                if (ImGui.ArrowButton("##mcharaInc", ImGuiDir.Right)) { debugModelCharaId++; DebugSpawnModel(); }
+                ImGui.SameLine();
+                if (ImGui.Button("Spawn Model")) DebugSpawnModel();
+                ImGui.SameLine();
+                if (ImGui.Button("Despawn") && debugSpawnedModel.IsValid())
+                {
+                    debugSpawnedModel.Destruct();
+                    debugSpawnedModel = default;
                 }
             }
         }
