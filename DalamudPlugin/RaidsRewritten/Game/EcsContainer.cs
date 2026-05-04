@@ -45,6 +45,11 @@ public sealed class EcsContainer : IDisposable
     public void Dispose()
     {
         this.dalamud.Framework.Update -= OnFrameworkUpdate;
+#if DEBUG
+        // Explicitly stop the REST server before ecs_fini() to avoid a freeze/crash
+        // when the Flecs Explorer browser has an active connection during hot-reload.
+        this.World.Remove<flecs.EcsRest>();
+#endif
         foreach(var system in this.systems)
         {
             if (system is IDisposable d)
