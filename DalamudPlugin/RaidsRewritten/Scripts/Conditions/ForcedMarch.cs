@@ -51,7 +51,10 @@ public class ForcedMarch : ISystem
         {
             var condition = Condition.ApplyToTarget(target, name, debuffDuration, DebuffId, false, false);
 
-            condition.Set(new Condition.Status(icon, name, description)).Add<Condition.StatusEnfeeblement>();
+            condition
+                .Set(new Condition.Status(icon, name, description))
+                .Set(new Condition.StatusTooltip($"{name} (RaidsRewritten)"))
+                .Add<Condition.StatusEnfeeblement>();
             condition.Set(new Pending(Vector3.Normalize(direction), marchDuration));
         }, 0, true).ChildOf(target);
     }
@@ -65,7 +68,10 @@ public class ForcedMarch : ISystem
         {
             var condition = Condition.ApplyToTarget(target, "Forced March", duration, MarchId, false, false);
 
-            condition.Set(new Condition.Status(215773, "Forced March", "Advancing inexorably.")).Add<Condition.StatusEnfeeblement>();
+            condition
+                .Set(new Condition.Status(215773, "Forced March", "Advancing inexorably."))
+                .Set(new Condition.StatusTooltip("Forced March (RaidsRewritten)"))
+                .Add<Condition.StatusEnfeeblement>();
             condition.Set(new Component(Vector3.Normalize(direction)));
 
             it.World().Entity()

@@ -25,8 +25,10 @@ public class AccelerationBomb(DalamudServices dalamud) : ISystem
 
             var condition = Condition.ApplyToTarget(target, "Acceleration Bomb", duration, Id, extendDuration, overrideExistingDuration);
 
-            condition.Set(new Condition.Status(215727, "Acceleration Bomb",
-                "An acceleration-trigger explosive is affixed to the body. Any movement when effect wears off will result in detonation."))
+            condition
+                .Set(new Condition.Status(215727, "Acceleration Bomb",
+                    "An acceleration-trigger explosive is affixed to the body. Any movement when effect wears off will result in detonation."))
+                .Set(new Condition.StatusTooltip("Acceleration Bomb (RaidsRewritten)"))
                 .Add<Condition.StatusEnfeeblement>();
 
             if (!condition.Has<Component>())

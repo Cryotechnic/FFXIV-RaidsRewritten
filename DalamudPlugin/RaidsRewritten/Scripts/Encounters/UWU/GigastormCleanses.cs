@@ -161,7 +161,9 @@ public class GigastormCleanses : Mechanic
         ref Entity condRef = ref (isLight ? ref lightCondition : ref darkCondition);
 
         var cond = Condition.ApplyToTarget(playerEntity, name, StackConditionDuration, conditionId, false, true);
-        cond.Set(new Condition.Status(icon, name, desc))
+        cond
+            .Set(new Condition.Status(icon, name, desc))
+            .Set(new Condition.StatusTooltip($"{name} (RaidsRewritten)"))
             .Add<Condition.StatusEnfeeblement>();
         condRef = cond;
 
@@ -186,7 +188,9 @@ public class GigastormCleanses : Mechanic
             lightStacks = Math.Max(0, lightStacks - 1);
             if (lightStacks == 0) { DestroyCondition(ref lightCondition); return; }
             if (lightCondition.IsValid())
-                lightCondition.Set(new Condition.Status(LightStatusIcons[lightStacks], "Wind-Scoured", "Relentless winds have scoured away your resistance."));
+                lightCondition
+                    .Set(new Condition.Status(LightStatusIcons[lightStacks], "Wind-Scoured", "Relentless winds have scoured away your resistance."))
+                    .Set(new Condition.StatusTooltip("Wind-Scoured (RaidsRewritten)"));
         }
         else
         {
@@ -194,7 +198,9 @@ public class GigastormCleanses : Mechanic
             darkStacks = Math.Max(0, darkStacks - 1);
             if (darkStacks == 0) { DestroyCondition(ref darkCondition); return; }
             if (darkCondition.IsValid())
-                darkCondition.Set(new Condition.Status(DarkStatusIcons[darkStacks], "Tempest Bound", "Caught outside the barrier, the tempest bears down on you with full force."));
+                darkCondition
+                    .Set(new Condition.Status(DarkStatusIcons[darkStacks], "Tempest Bound", "Caught outside the barrier, the tempest bears down on you with full force."))
+                    .Set(new Condition.StatusTooltip("Tempest Bound (RaidsRewritten)"));
         }
     }
 

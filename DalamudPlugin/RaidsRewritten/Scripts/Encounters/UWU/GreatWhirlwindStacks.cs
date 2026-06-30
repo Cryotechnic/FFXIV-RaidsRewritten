@@ -247,7 +247,10 @@ public class GreatWhirlwindStacks : Mechanic
         DelayedAction.Create(target.CsWorld(), (ref Iter it) =>
         {
             var condition = Condition.ApplyToTarget(target, "Fire Resistance Down", duration, FireResDownId, false, false);
-            condition.Set(new Condition.Status(215595, "Fire Resistance Down", "Fire resistance is reduced.")).Add<Condition.StatusEnfeeblement>();
+            condition
+                .Set(new Condition.Status(215595, "Fire Resistance Down", "Fire resistance is reduced."))
+                .Set(new Condition.StatusTooltip("Fire Resistance Down (RaidsRewritten)"))
+                .Add<Condition.StatusEnfeeblement>();
         }, 0, true).ChildOf(target);
     }
 }
