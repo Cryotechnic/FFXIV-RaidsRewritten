@@ -8,7 +8,7 @@ namespace RaidsRewritten.Scripts.Encounters.UWU;
 
 public class UwuRewritten : IEncounter
 {
-    public ushort TerritoryId => 777;
+    public uint TerritoryId => 777;
 
     public string Name => "UWU Rewritten";
 

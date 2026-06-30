@@ -7,36 +7,84 @@ using FFXIVClientStructs.FFXIV.Client.Graphics;
 using FFXIVClientStructs.FFXIV.Component.GUI;
 using Flecs.NET.Bindings;
 using Flecs.NET.Core;
+using Lumina.Excel.Sheets;
 using RaidsRewritten.Data;
 using RaidsRewritten.Game;
 using RaidsRewritten.Interop;
 using RaidsRewritten.Log;
 using RaidsRewritten.Scripts.Components;
 using RaidsRewritten.Scripts.Conditions;
+using RaidsRewritten.Utility;
 using System;
 using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
-using System.Text;
+using Condition = RaidsRewritten.Scripts.Conditions.Condition;
+using Status = RaidsRewritten.Data.Status;
+using World = Flecs.NET.Core.World;
 
 namespace RaidsRewritten.Memory;
 
-public unsafe class StatusCommonProcessor(
-    Configuration configuration,
-    DalamudServices dalamudServices,
-    ResourceLoader resourceLoader,
-    CommonQueries commonQueries,
-    ILogger logger) : IDisposable
+public sealed unsafe class StatusCommonProcessor : IDalamudHook
 {
+    private Configuration configuration;
+    private DalamudServices dalamudServices;
+    private ResourceLoader resourceLoader;
+    private CommonQueries commonQueries;
+    private ILogger logger;
+
+    public record struct IconStatusData(uint StatusId, string Name, uint StackCount, bool IsEnfeeblement);
+
     public nint HoveringOver = 0;
 
     public readonly nint TooltipMemory = Marshal.AllocHGlobal(2 * 1024);
     private int ActiveTooltip = -1;
 
     public readonly List<List<Status>> SortedStatusList = [[], [], [], [], [], [], [], []];
+    public Dictionary<uint, IconStatusData> StatusData = [];
+
+    public StatusCommonProcessor(
+        Configuration configuration,
+        DalamudServices dalamudServices,
+        ResourceLoader resourceLoader,
+        CommonQueries commonQueries,
+        ILogger logger)
+    {
+        this.configuration = configuration;
+        this.dalamudServices = dalamudServices;
+        this.resourceLoader = resourceLoader;
+        this.commonQueries = commonQueries;
+        this.logger = logger;
+
+        foreach (var x in dalamudServices.DataManager.GetExcelSheet<Lumina.Excel.Sheets.Status>())
+        {
+            var baseData = new IconStatusData(x.RowId, x.Name.ExtractText(), 0, x.StatusCategory == 2);
+            StatusData[x.Icon] = baseData;
+            for (var i = 2; i <= x.MaxStacks; i++)
+            {
+                StatusData[(uint)(x.Icon + i - 1)] = baseData with { StackCount = (uint) i };
+            }
+        }
+    }
+
+    public void HookToDalamud()
+    {
+        dalamudServices.Framework.Update += Framework_Update;
+        resourceLoader.OnAtkComponentIconTextReceiveHoverEvent += OnAtkComponentIconTextReceiveHoverEvent;
+    }
+
+    private void Framework_Update(Dalamud.Plugin.Services.IFramework framework)
+    {
+        if (HoveringOver == 0)
+        {
+            DisableActiveTooltip();
+        }
+    }
 
     public void Dispose()
     {
+        dalamudServices.Framework.Update -= Framework_Update;
+        resourceLoader.OnAtkComponentIconTextReceiveHoverEvent -= OnAtkComponentIconTextReceiveHoverEvent;
         Marshal.FreeHGlobal(TooltipMemory);
     }
 
@@ -49,7 +97,16 @@ public unsafe class StatusCommonProcessor(
         }
     }
 
-    public void SetIcon(AtkUnitBase* addon, ref Condition.Status status, ref Condition.Component condition, AtkResNode* container, FileReplacement? replacement = null)
+    public void HideTooltipIfMatch(AtkResNode* container)
+    {
+        var addr = (nint)container->GetAsAtkComponentNode()->Component;
+        if (HoveringOver == addr)
+        {
+            DisableActiveTooltip();
+        }
+    }
+
+    public void SetIcon(AtkUnitBase* addon, ref Condition.Status status, ref Condition.StatusTooltip statusTooltip, ref Condition.Component condition, AtkResNode* container, FileReplacement? replacement = null)
     {
         if (configuration.UseLegacyStatusRendering || configuration.EverythingDisabled) { return; }
         if (!container->IsVisible())
@@ -95,14 +152,14 @@ public unsafe class StatusCommonProcessor(
         var addr = (nint)container->GetAsAtkComponentNode()->Component;
         if (HoveringOver == addr && status.TooltipShown == -1)
         {
-            commonQueries.StatusQuery.Each((ref _, ref status) =>
+            commonQueries.StatusQuery.Each((ref _, ref status, ref statusTooltip) =>
             {
                 status.TooltipShown = -1;
             });
             status.TooltipShown = addon->Id;
             ActiveTooltip = addon->Id;
             AtkStage.Instance()->TooltipManager.HideTooltip(addon->Id);
-            var str = status.Title;
+            var str = statusTooltip.Title;
             if (status.Description != "")
             {
                 str += $"\n{status.Description}";
@@ -119,6 +176,11 @@ public unsafe class StatusCommonProcessor(
                 AtkStage.Instance()->TooltipManager.HideTooltip(addon->Id);
             }
         }
+    }
+
+    private void OnAtkComponentIconTextReceiveHoverEvent(nint obj)
+    {
+        HoveringOver = obj;
     }
 
     public unsafe static ByteColor CreateColor(uint color)
@@ -142,10 +204,10 @@ public unsafe class StatusCommonProcessor(
         return ">9d";
     }
 
-    public static Query<Condition.Component, Condition.Status> QueryForStatus(World world) => world.QueryBuilder<Condition.Component, Condition.Status>().Up().Cached().Build();
-    public static Query<Condition.Component, Condition.Status> QueryForStatusType<T>(World world)
+    public static Query<Condition.Component, Condition.Status, Condition.StatusTooltip> QueryForStatus(World world) => world.QueryBuilder<Condition.Component, Condition.Status, Condition.StatusTooltip>().Up().Cached().Build();
+    public static Query<Condition.Component, Condition.Status, Condition.StatusTooltip> QueryForStatusType<T>(World world)
     {
-        return world.QueryBuilder<Condition.Component, Condition.Status>().With<T>().With<Player.LocalPlayer>().Up().Cached().Build();
+        return world.QueryBuilder<Condition.Component, Condition.Status, Condition.StatusTooltip>().With<T>().With<Player.LocalPlayer>().Up().Cached().Build();
     }
 
     // adapted from https://github.com/NightmareXIV/ECommons/blob/master/ECommons/GenericHelpers/AddonHelpers.cs
@@ -161,8 +223,26 @@ public unsafe class StatusCommonProcessor(
         }
     }
 
+    public static bool IsCustomStatus(Entity e, out Condition.Component condition, out Condition.Status customStatus, out Condition.StatusTooltip statusTooltip)
+    {
+        if (
+            !e.TryGet<Condition.Component>(out var _condition) ||
+            !e.TryGet<Condition.Status>(out var _customStatus) ||
+            !e.TryGet<Condition.StatusTooltip>(out var _statusTooltip))
+        {
+            condition = default;
+            customStatus = default;
+            statusTooltip = default;
+            return false;
+        }
+
+        condition = _condition;
+        customStatus = _customStatus;
+        statusTooltip = _statusTooltip;
+        return true;
+    }
+
     public static unsafe bool LocalPlayerAvailable() => Control.Instance()->LocalPlayer is not null;
     public static unsafe nint LocalPlayer() => (nint)Control.Instance()->LocalPlayer;
-    public static Query<Condition.Component, Condition.Status> GetAllStatusesOfEntity(Entity e) => e.CsWorld().QueryBuilder<Condition.Component, Condition.Status>().With(flecs.EcsChildOf, e).Build();
     public AtkUnitBase* GetAddon(string addonName) => (AtkUnitBase*)dalamudServices.GameGui.GetAddonByName(addonName).Address;
 }

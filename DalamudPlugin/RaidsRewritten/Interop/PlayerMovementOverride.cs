@@ -1,5 +1,5 @@
 ﻿// Adapted from https://github.com/awgil/ffxiv_navmesh/blob/master/vnavmesh/Movement/OverrideMovement.cs
-// 43c1c4c
+// 5600020
 // and https://github.com/Caraxi/SimpleTweaksPlugin/blob/main/Tweaks/SmartStrafe.cs
 // ac71a90
 using System;
@@ -112,7 +112,7 @@ public unsafe sealed class PlayerMovementOverride : IDisposable
         {
             if (forcedWalkState)
             {
-                wasWalking = GetWalkState();
+                wasWalking = Control.Instance()->IsWalking;
             }
             else
             {
@@ -159,19 +159,11 @@ public unsafe sealed class PlayerMovementOverride : IDisposable
         }
     }
 
-    // Patch 7.5 changed the offset of the IsWalking variable
-    private bool GetWalkState()
-    {
-        return Marshal.ReadByte((nint)Control.Instance(), 0x7637) != 0;
-    }
-
     private void SetWalkState(bool state)
     {
         var control = Control.Instance();
-        var b = state ? (byte)0x1 : (byte)0x0;
-        Marshal.WriteByte((nint)control, 0x7637, b);
-        // This is for setting walking during auto-run
-        Marshal.WriteByte((nint)control, 0x7518, b);
+        control->IsWalking = state;
+        control->IsWalkingDuringAutorun = state;
     }
 
     private bool CheckStrafeKeybind(IntPtr ptr, KeybindType keybind)

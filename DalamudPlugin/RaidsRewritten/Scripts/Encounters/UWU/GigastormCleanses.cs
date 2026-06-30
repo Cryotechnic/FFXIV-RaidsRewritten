@@ -207,7 +207,7 @@ public class GigastormCleanses : Mechanic
                 .With(Ecs.ChildOf, playerEntity).Build();
             q.Each((Entity cond, ref Condition.Component _, ref Condition.Id id) =>
             {
-                if (id.Value == Stun.Id)
+                if (id.Value == ConditionTable.Id.Stun)
                     cond.Destruct();
             });
         });

@@ -18,35 +18,20 @@ using System.Text;
 
 namespace RaidsRewritten.Memory;
 
-public unsafe class StatusTargetInfoProcessor
+public unsafe sealed class StatusTargetInfoProcessor(Configuration configuration,
+    DalamudServices dalamudServices,
+    StatusCommonProcessor statusCommonProcessor,
+    EcsContainer ecsContainer,
+    ResourceLoader resourceLoader,
+    CommonQueries commonQueries,
+    ILogger logger) : IDalamudHook
 {
-    private readonly Configuration configuration;
-    private readonly DalamudServices dalamudServices;
-    private readonly StatusCommonProcessor statusCommonProcessor;
-    private readonly EcsContainer ecsContainer;
-    private readonly ResourceLoader resourceLoader;
-    private readonly CommonQueries commonQueries;
-    private readonly ILogger logger;
-
     public int NumStatuses = 0;
-    public StatusTargetInfoProcessor(Configuration configuration,
-        DalamudServices dalamudServices,
-        StatusCommonProcessor statusCommonProcessor,
-        EcsContainer ecsContainer,
-        ResourceLoader resourceLoader,
-        CommonQueries commonQueries,
-        ILogger logger)
-    {
-        this.configuration = configuration;
-        this.dalamudServices = dalamudServices;
-        this.statusCommonProcessor = statusCommonProcessor;
-        this.ecsContainer = ecsContainer;
-        this.resourceLoader = resourceLoader;
-        this.commonQueries = commonQueries;
-        this.logger = logger;
 
-        this.dalamudServices.AddonLifecycle.RegisterListener(AddonEvent.PostUpdate, "_TargetInfo", OnTargetInfoUpdate);
-        this.dalamudServices.AddonLifecycle.RegisterListener(AddonEvent.PostRequestedUpdate, "_TargetInfo", OnTargetInfoRequestedUpdate);
+    public void HookToDalamud()
+    {
+        dalamudServices.AddonLifecycle.RegisterListener(AddonEvent.PostUpdate, "_TargetInfo", OnTargetInfoUpdate);
+        dalamudServices.AddonLifecycle.RegisterListener(AddonEvent.PostRequestedUpdate, "_TargetInfo", OnTargetInfoRequestedUpdate);
         var addon = statusCommonProcessor.GetAddon("_TargetInfo");
         if (StatusCommonProcessor.LocalPlayerAvailable() && StatusCommonProcessor.IsAddonReady(addon))
         {
@@ -56,8 +41,8 @@ public unsafe class StatusTargetInfoProcessor
 
     public void Dispose()
     {
-        Svc.AddonLifecycle.UnregisterListener(AddonEvent.PostUpdate, "_TargetInfo", OnTargetInfoUpdate);
-        Svc.AddonLifecycle.UnregisterListener(AddonEvent.PostRequestedUpdate, "_TargetInfo", OnTargetInfoRequestedUpdate);
+        dalamudServices.AddonLifecycle.UnregisterListener(AddonEvent.PostUpdate, "_TargetInfo", OnTargetInfoUpdate);
+        dalamudServices.AddonLifecycle.UnregisterListener(AddonEvent.PostRequestedUpdate, "_TargetInfo", OnTargetInfoRequestedUpdate);
     }
 
     public void HideAll()
@@ -104,7 +89,7 @@ public unsafe class StatusTargetInfoProcessor
     public void UpdateAddon(AtkUnitBase* addon, bool hideAll = false)
     {
         if (!hideAll && (configuration.UseLegacyStatusRendering || configuration.EverythingDisabled)) { return; }
-        var target = this.dalamudServices.TargetManager.SoftTarget! ?? this.dalamudServices.TargetManager.Target!;
+        var target = dalamudServices.TargetManager.SoftTarget! ?? dalamudServices.TargetManager.Target!;
         if (target is IPlayerCharacter pc)
         {
             if (!StatusCommonProcessor.IsAddonReady(addon)) { return; }
@@ -121,18 +106,22 @@ public unsafe class StatusTargetInfoProcessor
             {
                 if (player.PlayerCharacter != null && player.PlayerCharacter.Address == target.Address)
                 {
-                    var statusQuery = StatusCommonProcessor.GetAllStatusesOfEntity(e);
-                    statusQuery.Each((e, ref condition, ref status) =>
+                    e.Children((Entity child) =>
                     {
+                        if (!StatusCommonProcessor.IsCustomStatus(child, out var condition, out var customStatus, out var statusTooltip))
+                        {
+                            return;
+                        }
                         if (baseCnt < 3) { return; }
                         if (condition.TimeRemaining > 0)
                         {
-                            if (e.TryGet<FileReplacement>(out var replacement))
+                            if (child.TryGet<FileReplacementReference>(out var replacement))
                             {
-                                SetIcon(addon, baseCnt, ref status, ref condition, replacement);
-                            } else
+                                SetIcon(addon, baseCnt, ref customStatus, ref statusTooltip, ref condition, replacement.Replacement);
+                            }
+                            else
                             {
-                                SetIcon(addon, baseCnt, ref status, ref condition);
+                                SetIcon(addon, baseCnt, ref customStatus, ref statusTooltip, ref condition);
                             }
                             baseCnt--;
                         }
@@ -142,9 +131,9 @@ public unsafe class StatusTargetInfoProcessor
         }
     }
 
-    private void SetIcon(AtkUnitBase* addon, int index, ref Condition.Status status, ref Condition.Component condition, FileReplacement? replacement = null)
+    private void SetIcon(AtkUnitBase* addon, int index, ref Condition.Status status, ref Condition.StatusTooltip statusTooltip, ref Condition.Component condition, FileReplacement? replacement = null)
     {
         var container = addon->UldManager.NodeList[index];
-        statusCommonProcessor.SetIcon(addon, ref status, ref condition, container, replacement);
+        statusCommonProcessor.SetIcon(addon, ref status, ref statusTooltip, ref condition, container, replacement);
     }
 }

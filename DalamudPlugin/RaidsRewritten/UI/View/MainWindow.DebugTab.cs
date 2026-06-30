@@ -46,6 +46,11 @@ public partial class MainWindow
         var displayLabel = nextLabel.Contains("##") ? nextLabel[..nextLabel.IndexOf("##")] : nextLabel;
         var nextWidth =  ImGui.CalcTextSize(displayLabel).X + style.FramePadding.X * 2;
         var maxWidth = ImGui.GetWindowPos().X + ImGui.GetWindowContentRegionMax().X;
+        var scrollbarVisible = ImGui.GetScrollMaxY() > 0.0f;
+        if (!scrollbarVisible)
+        {
+            maxWidth -= style.ScrollbarSize;
+        }
         if (ImGui.GetItemRectMax().X + style.ItemSpacing.X + nextWidth < maxWidth)
             ImGui.SameLine();
     }
@@ -62,94 +67,6 @@ public partial class MainWindow
 
         if (debug)
         {
-#if DEBUG
-            if (ImGui.CollapsingHeader("Encounter Override"))
-            {
-                if (ImGui.Button("Clear Override"))
-                {
-                    encounterManager.ForceActivateEncounter(null);
-                }
-
-                foreach (var enc in encounterManager.Encounters)
-                {
-                    ImGui.SameLine();
-                    if (ImGui.Button(enc.Name))
-                    {
-                        encounterManager.ForceActivateEncounter(enc);
-                    }
-                }
-
-                ImGui.TextColored(new Vector4(1, 1, 0, 1), "Active: " + (encounterManager.ActiveEncounter?.Name ?? "None"));
-            }
-
-            if (encounterManager.ActiveEncounter != null && ImGui.CollapsingHeader("Mechanic Triggers"))
-            {
-                ImGui.Text("Global Events:");
-                if (ImGui.Button("Combat Start"))
-                {
-                    foreach (var mechanic in encounterManager.ActiveEncounter.GetMechanics())
-                    {
-                        mechanic.OnCombatStart();
-                    }
-                }
-                ImGui.SameLine();
-                if (ImGui.Button("Combat End"))
-                {
-                    foreach (var mechanic in encounterManager.ActiveEncounter.GetMechanics())
-                    {
-                        mechanic.OnCombatEnd();
-                    }
-                }
-                ImGui.SameLine();
-                if (ImGui.Button("Director: Commence"))
-                {
-                    encounterManager.ActiveEncounter.IncrementRngSeed();
-                    foreach (var mechanic in encounterManager.ActiveEncounter.GetMechanics())
-                    {
-                        mechanic.OnDirectorUpdate(DirectorUpdateCategory.Commence);
-                    }
-                }
-                ImGui.SameLine();
-                if (ImGui.Button("Director: Wipe"))
-                {
-                    foreach (var mechanic in encounterManager.ActiveEncounter.GetMechanics())
-                    {
-                        mechanic.OnDirectorUpdate(DirectorUpdateCategory.Wipe);
-                    }
-                }
-
-                ImGui.Separator();
-                ImGui.Text("Individual Mechanics:");
-                foreach (var mechanic in encounterManager.ActiveEncounter.GetMechanics())
-                {
-                    var name = mechanic.GetType().Name;
-                    if (ImGui.TreeNode(name))
-                    {
-                        if (ImGui.Button($"Simulate##{name}"))
-                        {
-                            mechanic.DebugSimulate();
-                        }
-                        ImGui.SameLine();
-                        if (ImGui.Button($"OnCombatStart##{name}"))
-                        {
-                            mechanic.OnCombatStart();
-                        }
-                        ImGui.SameLine();
-                        if (ImGui.Button($"OnCombatEnd##{name}"))
-                        {
-                            mechanic.OnCombatEnd();
-                        }
-                        ImGui.SameLine();
-                        if (ImGui.Button($"Reset##{name}"))
-                        {
-                            mechanic.Reset();
-                        }
-                        ImGui.TreePop();
-                    }
-                }
-            }
-#endif
-
             bool punishmentImmunity = configuration.PunishmentImmunity;
             if (ImGui.Checkbox("Punishment Immunity", ref punishmentImmunity))
             {
@@ -181,7 +98,7 @@ public partial class MainWindow
             var player = this.dalamud.ObjectTable.LocalPlayer;
             if (player != null)
             {
-                this.logger.Info($"Player position:{player.Position}, address:0x{player.Address:X}, entityId:0x{player.EntityId:X}, gameObjectId:0x{player.GameObjectId:X}");
+                this.logger.Info($"Player position:{player.Position}, address:0x{player.Address:X}, entityId:0x{player.EntityId:X}, gameObjectId:0x{player.GameObjectId:X}, contentId:{dalamud.PlayerState.ContentId}");
             }
         }
         SameLineIfFits("Print Target Data");
@@ -194,7 +111,12 @@ public partial class MainWindow
                 this.logger.Info($"Target position:{target.Position}, address:0x{target.Address:X}, entityId:0x{target.EntityId:X}, gameObjectId:0x{target.GameObjectId:X}, baseId:0x{target.BaseId:X}");
             }
         }
-
+        SameLineIfFits("Print Map Data");
+        if (ImGui.Button("Print Map Data"))
+        {
+            this.logger.Info($"Current territory ID:{dalamud.ClientState.TerritoryType}");
+        }
+        SameLineIfFits("Print Weather/Time Data");
         if (ImGui.Button("Print Weather/Time Data"))
         {
             unsafe
@@ -212,6 +134,7 @@ public partial class MainWindow
 
         if (ImGui.CollapsingHeader("Fake Statuses"))
         {
+            ImGui.Text("Apply to self");
             if (ImGui.Button("Bind"))
             {
                 commonQueries.LocalPlayerQuery.Each((Entity e, ref Player.Component pc) =>
@@ -245,14 +168,6 @@ public partial class MainWindow
                     Paralysis.ApplyToTarget(e, 5.0f, 3.0f, 1.0f);
                 });
             }
-            SameLineIfFits("Heavy");
-            if (ImGui.Button("Heavy"))
-            {
-                commonQueries.LocalPlayerQuery.Each((Entity e, ref Player.Component pc) =>
-                {
-                    Heavy.ApplyToTarget(e, 5.0f);
-                });
-            }
             SameLineIfFits("Pacify");
             if (ImGui.Button("Pacify"))
             {
@@ -261,15 +176,7 @@ public partial class MainWindow
                     Pacify.ApplyToTarget(e, 5.0f);
                 });
             }
-            SameLineIfFits("Blind");
-            if (ImGui.Button("Blind"))
-            {
-                commonQueries.LocalPlayerQuery.Each((Entity e, ref Player.Component pc) =>
-                {
-                    Blind.ApplyToTarget(e, 5.0f);
-                });
-            }
-            SameLineIfFits("Blind");
+            SameLineIfFits("Sleep");
             if (ImGui.Button("Sleep"))
             {
                 commonQueries.LocalPlayerQuery.Each((Entity e, ref Player.Component pc) =>
@@ -285,12 +192,44 @@ public partial class MainWindow
                     Hysteria.ApplyToTarget(e, 8.0f, 3.0f);
                 });
             }
+            SameLineIfFits("Heavy");
+            if (ImGui.Button("Heavy"))
+            {
+                commonQueries.LocalPlayerQuery.Each((Entity e, ref Player.Component pc) =>
+                {
+                    Heavy.ApplyToTarget(e, 5.0f);
+                });
+            }
             SameLineIfFits("Heavy (e)");
             if (ImGui.Button("Heavy (e)"))
             {
                 commonQueries.LocalPlayerQuery.Each((Entity e, ref Player.Component pc) =>
                 {
                     Heavy.ApplyToTarget(e, 5.0f, true);
+                });
+            }
+            SameLineIfFits("Epic Hero");
+            if (ImGui.Button("Epic Hero"))
+            {
+                commonQueries.LocalPlayerQuery.Each((Entity e, ref Player.Component pc) =>
+                {
+                    EpicHero.ApplyToTarget(e);
+                });
+            }
+            SameLineIfFits("Fated Hero");
+            if (ImGui.Button("Fated Hero"))
+            {
+                commonQueries.LocalPlayerQuery.Each((Entity e, ref Player.Component pc) =>
+                {
+                    FatedHero.ApplyToTarget(e);
+                });
+            }
+
+            if (ImGui.Button("Blind"))
+            {
+                commonQueries.LocalPlayerQuery.Each((Entity e, ref Player.Component pc) =>
+                {
+                    Blind.ApplyToTarget(e, 5.0f);
                 });
             }
 
@@ -362,6 +301,20 @@ public partial class MainWindow
                         ForcedMarch.ApplyToTarget(e, direction, 5.0f, 3.0f, ForcedMarch.Direction.Right);
                     });
                 }
+            }
+
+            ImGui.Text("Apply to random party member");
+            if (ImGui.Button("Bind##BindOther"))
+            {
+                var targetCount = commonQueries.AllOtherPlayersQuery.Count();
+                var r = random.Next(targetCount);
+                commonQueries.AllOtherPlayersQuery.Each((Iter it, int i, ref Player.Component pc) =>
+                {
+                    if (i == r)
+                    {
+                        Bind.ApplyToTarget(it.Entity(i), 3.0f);
+                    }
+                });
             }
         }
 

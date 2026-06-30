@@ -2,7 +2,6 @@
 // 37e76d3
 using Dalamud.Game.Gui.FlyText;
 using Dalamud.Game.Text.SeStringHandling;
-using Dalamud.Memory;
 using Dalamud.Plugin.Services;
 using ECommons;
 using ECommons.GameFunctions;
@@ -15,7 +14,9 @@ using Lumina.Excel.Sheets;
 using RaidsRewritten.Game;
 using RaidsRewritten.Interop;
 using RaidsRewritten.Log;
+using RaidsRewritten.Scripts;
 using RaidsRewritten.Scripts.Components;
+using RaidsRewritten.Utility;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -24,66 +25,32 @@ using System.Text;
 
 namespace RaidsRewritten.Memory;
 
-public unsafe class StatusFlyPopupTextProcessor
+public unsafe sealed class StatusFlyPopupTextProcessor(
+    Configuration configuration,
+    DalamudServices dalamudServices,
+    ResourceLoader resourceLoader,
+    StatusCommonProcessor statusCommonProcessor,
+    EcsContainer ecsContainer,
+    CommonQueries commonQueries,
+    ILogger logger) : IDalamudHook
 {
-    public class FlyPopupTextData (Entity entity, Scripts.Conditions.Condition.Status status, bool isAddition, uint owner, FileReplacement? replacement = null)
+    public class FlyPopupTextData(Scripts.Conditions.Condition.Status status, bool isAddition, FileReplacement? replacement = null)
     {
         public Scripts.Conditions.Condition.Status Status = status;
         public FileReplacement? Replacement = replacement;
-        public bool IsEnfeeblement = entity.Has<Scripts.Conditions.Condition.StatusEnfeeblement>();
         public bool IsAddition = isAddition;
-        public uint OwnerEntityId = owner;
     }
 
-    public record struct IconStatusData(uint StatusId, string Name, uint StackCount);
+    public FlyPopupTextData? CurrentElement = null;
 
-    private readonly Configuration configuration;
-    private readonly DalamudServices dalamudServices;
-    private readonly ResourceLoader resourceLoader;
-    private readonly StatusCommonProcessor statusCommonProcessor;
-    private readonly EcsContainer ecsContainer;
-    private readonly CommonQueries commonQueries;
-    private readonly ILogger logger;
-
-    private List<FlyPopupTextData> Queue = [];
-    public FlyPopupTextData CurrentElement = null!;
-    public Dictionary<uint, IconStatusData> StatusData = [];
-
-    public StatusFlyPopupTextProcessor(
-        Configuration configuration,
-        DalamudServices dalamudServices,
-        ResourceLoader resourceLoader,
-        StatusCommonProcessor statusCommonProcessor,
-        EcsContainer ecsContainer,
-        CommonQueries commonQueries,
-        ILogger logger)
+    public void HookToDalamud()
     {
-        this.configuration = configuration;
-        this.dalamudServices = dalamudServices;
-        this.resourceLoader = resourceLoader;
-        this.statusCommonProcessor = statusCommonProcessor;
-        this.ecsContainer = ecsContainer;
-        this.commonQueries = commonQueries;
-        this.logger = logger;
-
-        foreach (var x in this.dalamudServices.DataManager.GetExcelSheet<Status>())
-        {
-            var baseData = new IconStatusData(x.RowId, x.Name.ExtractText(), 0);
-            StatusData[x.Icon] = baseData;
-            for (var i = 2; i <= x.MaxStacks; i++)
-            {
-                StatusData[(uint)(x.Icon + i - 1)] = baseData with { StackCount = (uint)i };
-            }
-        }
-        this.dalamudServices.Framework.Update += Framework_Update;
+        dalamudServices.Framework.Update += Framework_Update;
     }
 
-    public void Enqueue(FlyPopupTextData data)
+    public void Dispose()
     {
-        if (!this.configuration.UseLegacyStatusRendering && !configuration.EverythingDisabled)
-        {
-            Queue.Add(data);
-        }
+        dalamudServices.Framework.Update -= Framework_Update;
     }
 
     private unsafe void Framework_Update(IFramework framework)
@@ -92,35 +59,19 @@ public unsafe class StatusFlyPopupTextProcessor
         ProcessFlyText();
         if (CurrentElement != null) CurrentElement = null!;
 
-        var objManager = GameObjectManager.Instance();
+        Entity? toDestroy = null;
+        Entity? toRemove = null;
 
-        if (Queue.Count > this.configuration.FlyPopupTextLimit)
-        {
-            PluginLog.Warning($"FlyPopupTextProcessor Queue is too large! Trimming to {this.configuration.FlyPopupTextLimit} closest entities.");
-            var n = Queue.RemoveAll(x =>
-            {
-                var obj = objManager->Objects.GetObjectByEntityId(x.OwnerEntityId);
-                return obj == null || !obj->IsCharacter();
-            });
-
-            if (n > 0) PluginLog.Information($"  Removed {n} non-player entities");
-            var localPlayer = (Character*)StatusCommonProcessor.LocalPlayer();
-            if (localPlayer == null) { return; }
-
-            Queue = Queue
-                .OrderBy(x => Vector3.DistanceSquared(localPlayer->Position, objManager->Objects.GetObjectByEntityId(x.OwnerEntityId)->Position))
-                .Take(this.configuration.FlyPopupTextLimit)
-                .ToList();
-        }
-
-        while (Queue.TryDequeue(out var e))
-        {
+        var executedThisFrame = false;
+        commonQueries.StatusFlyTextReadyQuery.Each((Entity entity, ref FlyText flytext, ref FlyTextReady flytextData) => {
+            if (executedThisFrame) return;
+            var data = flytextData.Data;
             Character* target = null;
-            foreach (var pc in this.dalamudServices.ObjectTable.PlayerObjects)
+            foreach (var pc in dalamudServices.ObjectTable.PlayerObjects)
             {
                 GameObject* obj = pc.GameObject();
                 if (obj == null) continue;
-                if (obj->EntityId != e.OwnerEntityId) continue;
+                if (obj->EntityId != flytext.OwnerEntityId) continue;
                 if (!obj->IsCharacter()) continue;
 
                 target = (Character*)obj;
@@ -131,31 +82,55 @@ public unsafe class StatusFlyPopupTextProcessor
             if (target != null)
             {
                 //PluginLog.Debug($"Processing {e.Status.Title} at {Utils.Frame} for {target->NameString}...");
-                CurrentElement = e;
+                if (entity.TryGet<FileReplacement>(out var replacement))
+                {
+                    data.Replacement = replacement;
+                }
+
+                CurrentElement = data;
                 //var isMine = e.Status.Applier == LocalPlayer.NameWithWorld && e.IsAddition;
                 FlyTextKind kind;
-                if (e.IsEnfeeblement)
+                if (flytext.IsEnfeeblement)
                 {
-                    kind = e.IsAddition ? FlyTextKind.Debuff : FlyTextKind.DebuffFading;
-                } else
-                {
-                    kind = e.IsAddition ? FlyTextKind.Buff : FlyTextKind.BuffFading;
+                    kind = data.IsAddition ? FlyTextKind.Debuff : FlyTextKind.DebuffFading;
                 }
-                if (StatusData.TryGetValue((uint)e.Status.Icon, out var data))
+                else
                 {
-                    resourceLoader.BattleLog_AddToScreenLogWithScreenLogKind((nint)target, (nint)target, kind, 5, 0, 0, (int)data.StatusId, (int)data.StackCount, 0);
-                } else
-                {
-                    PluginLog.Error($"[FlyPopupTextProcessor] Error retrieving data for icon {e.Status.Icon}, please report to developer.");
+                    kind = data.IsAddition ? FlyTextKind.Buff : FlyTextKind.BuffFading;
                 }
-                break;
-            } else
-            {
-                PluginLog.Debug($"Skipping {e.Status.Title} for {e.OwnerEntityId:X8}, not found...");
+                if (statusCommonProcessor.StatusData.TryGetValue((uint)data.Status.Icon, out var statusData))
+                {
+                    resourceLoader.BattleLog_AddToScreenLogWithScreenLogKind((nint)target, (nint)target, kind, 5, 0, 0, (int)statusData.StatusId, (int)statusData.StackCount, 0);
+                }
+                else
+                {
+                    PluginLog.Error($"[FlyPopupTextProcessor] Error retrieving data for icon {data.Status.Icon}, please report to developer.");
+                }
+
+                if (!flytextData.Data.IsAddition) { toDestroy = entity; }
+                else { toRemove = entity; }
+
+                executedThisFrame = true;
             }
+            else
+            {
+                PluginLog.Debug($"Skipping {data.Status.Title} for {flytext.OwnerEntityId:X8}, not found...");
+            }
+        });
+
+        if (toRemove.HasValue) { toRemove.Value.Remove<FlyTextReady>(); }
+        if (toDestroy.HasValue)
+        {
+            toDestroy.Value.Remove<FlyTextReady>()
+                .Remove<FlyText>();
+            DelayedAction.Create(ecsContainer.World, () =>
+            {
+                toDestroy.Value.Destruct();
+            }, 5, false);
         }
     }
 
+    // flytext for other players
     private void ProcessPopupText()
     {
         if (CurrentElement == null) { return; }
@@ -170,7 +145,13 @@ public unsafe class StatusFlyPopupTextProcessor
                 var c = candidate->GetAsAtkComponentNode()->Component;
                 var sestr = new SeStringBuilder().AddText(CurrentElement.IsAddition ? "+ " : "- ").Append(CurrentElement.Status.Title);
                 c->UldManager.NodeList[1]->GetAsAtkTextNode()->SetText(sestr.Encode());
-                c->UldManager.NodeList[2]->GetAsAtkImageNode()->LoadTexture(this.dalamudServices.TextureProvider.GetIconPath(CurrentElement.Status.Icon), 1);
+
+                if (CurrentElement.Replacement != null)
+                {
+                    //logger.Debug("DALMAUD LOAD ICON");
+                    c->UldManager.NodeList[2]->GetAsAtkImageNode()->LoadTexture(CurrentElement.Replacement.Value.OriginalPath);
+                }
+
                 CurrentElement = null!;
                 return;
             }
@@ -189,12 +170,14 @@ public unsafe class StatusFlyPopupTextProcessor
             var candidate = addon->UldManager.NodeList[i];
             if (IsCandidateValid(candidate, CurrentElement))
             {
+                //logger.Debug("valid");
                 var c = candidate->GetAsAtkComponentNode()->Component;
                 var sestr = new SeStringBuilder().AddText(CurrentElement.IsAddition ? "+ " : "- ").Append(CurrentElement.Status.Title);
                 c->UldManager.NodeList[1]->GetAsAtkTextNode()->SetText(sestr.Encode());
 
                 if (CurrentElement.Replacement != null)
                 {
+                    //logger.Debug("DALMAUD LOAD ICON");
                     c->UldManager.NodeList[2]->GetAsAtkImageNode()->LoadTexture(CurrentElement.Replacement.Value.OriginalPath);
                 }
 
@@ -214,10 +197,10 @@ public unsafe class StatusFlyPopupTextProcessor
         if (c->UldManager.NodeList[2]->Type != NodeType.Image) return false;
         if (!c->UldManager.NodeList[2]->IsVisible()) return false;
 
-        var text = MemoryHelper.ReadSeString(&c->UldManager.NodeList[1]->GetAsAtkTextNode()->NodeText)?.GetText();
+        var text = c->UldManager.NodeList[1]->GetAsAtkTextNode()->NodeText.Read().GetText();
         if (text is null || e.IsAddition ? text!.StartsWith('-') : text.StartsWith('+')) return false;
 
-        if (StatusData.TryGetValue((uint)CurrentElement.Status.Icon, out var data))
+        if (statusCommonProcessor.StatusData.TryGetValue((uint)CurrentElement.Status.Icon, out var data))
         {
             if (!text.Contains(data.Name)) return false;
         } else
@@ -226,10 +209,4 @@ public unsafe class StatusFlyPopupTextProcessor
         }
         return true;
     }
-
-    public void Dispose()
-    {
-        this.dalamudServices.Framework.Update -= Framework_Update;
-    }
-
 }

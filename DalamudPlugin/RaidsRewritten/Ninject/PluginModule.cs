@@ -1,4 +1,5 @@
-﻿using Dalamud.Interface.Windowing;
+﻿using System;
+using Dalamud.Interface.Windowing;
 using Ninject.Activation;
 using Ninject.Modules;
 using RaidsRewritten.Game;
@@ -14,6 +15,7 @@ using RaidsRewritten.Scripts.Attacks.Omens;
 using RaidsRewritten.Scripts.Conditions;
 using RaidsRewritten.Scripts.Encounters;
 using RaidsRewritten.Scripts.Encounters.E1S;
+using RaidsRewritten.Scripts.Encounters.TEA;
 using RaidsRewritten.Scripts.Encounters.UCOB;
 using RaidsRewritten.Scripts.Encounters.UWU;
 using RaidsRewritten.Scripts.Models;
@@ -35,14 +37,14 @@ public class PluginModule : NinjectModule
         Bind<ActorControlProcessor>().ToSelf().InSingletonScope();
         Bind<ResourceLoader>().ToSelf().InSingletonScope();
         Bind<VfxSpawn>().ToSelf().InSingletonScope();
-        Bind<StatusCommonProcessor>().ToSelf().InSingletonScope();
-        Bind<StatusProcessor>().ToSelf().InSingletonScope();
-        Bind<StatusCustomProcessor>().ToSelf().InSingletonScope();
-        Bind<StatusPartyListProcessor>().ToSelf().InSingletonScope();
-        Bind<StatusTargetInfoProcessor>().ToSelf().InSingletonScope();
-        Bind<StatusTargetInfoBuffDebuffProcessor>().ToSelf().InSingletonScope();
-        Bind<StatusFocusTargetProcessor>().ToSelf().InSingletonScope();
-        Bind<StatusFlyPopupTextProcessor>().ToSelf().InSingletonScope();
+        Bind<IDalamudHook, StatusCommonProcessor>().To<StatusCommonProcessor>().InSingletonScope();
+        Bind<IDalamudHook, StatusProcessor>().To<StatusProcessor>().InSingletonScope();
+        Bind<IDalamudHook, StatusCustomProcessor>().To<StatusCustomProcessor>().InSingletonScope();
+        Bind<IDalamudHook, StatusPartyListProcessor>().To<StatusPartyListProcessor>().InSingletonScope();
+        Bind<IDalamudHook, StatusTargetInfoProcessor>().To<StatusTargetInfoProcessor>().InSingletonScope();
+        Bind<IDalamudHook, StatusTargetInfoBuffDebuffProcessor>().To<StatusTargetInfoBuffDebuffProcessor>().InSingletonScope();
+        Bind<IDalamudHook, StatusFocusTargetProcessor>().To<StatusFocusTargetProcessor>().InSingletonScope();
+        Bind<IDalamudHook, StatusFlyPopupTextProcessor>().To<StatusFlyPopupTextProcessor>().InSingletonScope();
 
         // IPC
         Bind<MoodlesIPC>().ToSelf().InSingletonScope();
@@ -52,10 +54,11 @@ public class PluginModule : NinjectModule
         Bind<IDalamudHook>().To<PluginUIContainer>().InSingletonScope();
         Bind<IDalamudHook>().To<CommandDispatcher>().InSingletonScope();
         Bind<IDalamudHook, EncounterManager>().To<EncounterManager>().InSingletonScope();
-        Bind<IDalamudHook>().To<EntityManager>().InSingletonScope();
+        Bind<IDalamudHook, EntityManager>().To<EntityManager>().InSingletonScope();
         Bind<Mechanic.Factory>().ToSelf();
         Bind<InputEventSource>().ToSelf().InSingletonScope();
         Bind<EcsContainer>().ToSelf().InSingletonScope();
+        Bind<IDalamudHook, EcsRunner>().To<EcsRunner>().InSingletonScope();
         Bind<CommonQueries>().ToSelf().InSingletonScope();
         Bind<NetworkClient>().ToSelf().InSingletonScope();
         Bind<NetworkClientMessageHandler>().ToSelf().WhenInjectedInto<NetworkClient>().InSingletonScope();
@@ -80,14 +83,14 @@ public class PluginModule : NinjectModule
         Bind<Configuration>().ToMethod(GetConfiguration).InSingletonScope();
 
         // Encounters
+        Bind<IEncounter>().To<EdenPrimeTest>().InSingletonScope();
         Bind<IEncounter>().To<UcobRewritten>().InSingletonScope();
         Bind<IEncounter>().To<UwuRewritten>().InSingletonScope();
-        Bind<IEncounter>().To<EdenPrimeTest>().InSingletonScope();
+        Bind<IEncounter>().To<TeaRewritten>().InSingletonScope();
 
         // Entities
         // Models
         Bind<IEntity>().To<Chefbingus>();
-        Bind<IEntity>().To<Garuda>();
         // Omens
         Bind<IEntity>().To<CircleOmen>();
         Bind<IEntity>().To<Fan90Omen>();
@@ -109,6 +112,7 @@ public class PluginModule : NinjectModule
         Bind<IEntity, ISystem>().To<Scripts.Attacks.LiquidHeaven>();
         Bind<IEntity, ISystem>().To<JumpableShockwave>();
         Bind<IEntity, ISystem>().To<Dreadknight>();
+        Bind<IEntity>().To<Garuda>();
         Bind<IEntity, ISystem>().To<ADS>();
         Bind<IEntity, ISystem>().To<DistanceSnapshotTether>();
         Bind<IEntity, ISystem>().To<ExpandingPuddle>();
@@ -120,17 +124,18 @@ public class PluginModule : NinjectModule
         Bind<IEntity, ISystem>().To<CircleBladeMelusine>();
         Bind<IEntity, ISystem>().To<NerveGasKaliya>();
         Bind<IEntity, ISystem>().To<VoidGate>();
-        
+
         // Systems
         Bind<ISystem>().To<Player>();
         Bind<ISystem>().To<DelayedAction>();
         Bind<ISystem>().To<VfxSystem>();
         Bind<ISystem>().To<OmenSystem>();
-        Bind<ISystem>().To<ModelSystem>();
+        Bind<ISystem, IDalamudHook>().To<ModelSystem>().InSingletonScope();
         Bind<ISystem>().To<FileReplacementSystem>();
         Bind<ISystem>().To<InputSystem>();
         Bind<ISystem>().To<NetworkClientSystem>();
         Bind<ISystem>().To<StatusSystem>();
+        Bind<ISystem>().To<PartyPlayersSystem>();
 
         // Conditions
         Bind<ISystem>().To<Condition>();
@@ -141,8 +146,12 @@ public class PluginModule : NinjectModule
         Bind<ISystem>().To<ForcedMarch>();
         Bind<ISystem>().To<AccelerationBomb>();
 
+        // Logging
         Bind<ILogger>().To<DalamudLogger>();
         Bind<DalamudLoggerFactory>().ToSelf();
+
+        // Misc
+        Bind<Random>().ToConstant(new Random());
     }
 
     private Configuration GetConfiguration(IContext context)

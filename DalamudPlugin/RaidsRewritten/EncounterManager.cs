@@ -15,7 +15,6 @@ using RaidsRewritten.IPC;
 using RaidsRewritten.Log;
 using RaidsRewritten.Memory;
 using RaidsRewritten.Scripts.Encounters;
-using RaidsRewritten.UI.View;
 using RaidsRewritten.Utility;
 using ZLinq;
 
@@ -28,7 +27,6 @@ public sealed class EncounterManager(
     ActorControlProcessor actorControlProcessor,
     StatusPartyListProcessor statusPartyListProcessor,
     MoodlesIPC moodlesIPC,
-    Lazy<MainWindow> mainWindow,
     Configuration configuration,
     IEncounter[] encounters,
     ILogger logger) : IDalamudHook
@@ -36,6 +34,8 @@ public sealed class EncounterManager(
     public IEncounter[] Encounters => encounters;
     public IEncounter? ActiveEncounter { get; private set; }
     public bool InCombat => inCombat ?? false;
+
+    public event Action? EncounterLoaded;
 
     private readonly List<string> BlacklistedPcVfx = [
         "vfx/common/eff/dk02ht_zan0m.avfx",
@@ -69,7 +69,6 @@ public sealed class EncounterManager(
         OnTerritoryChanged(dalamud.ClientState.TerritoryType);
         dalamud.Framework.Update += OnFrameworkUpdate;
     }
-
     public void ForceActivateEncounter(IEncounter? encounter)
     {
         ActiveEncounter?.Unload();
@@ -83,7 +82,7 @@ public sealed class EncounterManager(
             if (!configuration.EverythingDisabled)
             {
                 moodlesIPC.CheckMoodles();
-                mainWindow.Value.Visible = true;
+                EncounterLoaded?.Invoke();
             }
         }
         else
@@ -115,7 +114,7 @@ public sealed class EncounterManager(
             if (!configuration.EverythingDisabled)
             {
                 moodlesIPC.CheckMoodles();
-                mainWindow.Value.Visible = true;
+                EncounterLoaded?.Invoke();
             }
         }
         else
@@ -224,7 +223,7 @@ public sealed class EncounterManager(
         }
     }
 
-    private void OnDirectorUpdate(long a1, long a2, DirectorUpdateCategory a3, uint a4, uint a5, int a6, int a7, int a8, int a9)
+    private void OnDirectorUpdate(nint a1, uint a2, DirectorUpdateCategory a3, uint a4, uint a5, int a6, int a7, int a8, int a9)
     {
         var text = $"DIRECTOR_UPDATE: {a3}, {a4:X8}, {a5:X8}, {a6:X8}, {a7:X8}, {a8:X8}, {a9:X8}";
         logger.Trace(text);

@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.Threading.Tasks;
 using AsyncAwaitBestPractices;
 using Dalamud.IoC;
@@ -7,6 +8,8 @@ using Dalamud.Plugin.Services;
 using ECommons.DalamudServices;
 using Ninject;
 using Ninject.Extensions.Factory;
+using Ninject.Planning.Bindings.Resolvers;
+using RaidsRewritten.Game;
 using RaidsRewritten.Log;
 using RaidsRewritten.Ninject;
 using RaidsRewritten.Utility;
@@ -46,6 +49,8 @@ public sealed class PluginInitializer : IDalamudPlugin
     public PluginInitializer()
     {
         this.kernel = new StandardKernel(new PluginModule(), new FuncModule());
+        // Remove implicit bindings - all bindings must be explicitly declared
+        this.kernel.Components.Remove<IMissingBindingResolver, SelfBindingResolver>();
 
         //Services
         Svc.Init(PluginInterface, this.kernel.Get<ILogger>());
@@ -61,7 +66,33 @@ public sealed class PluginInitializer : IDalamudPlugin
     public void Dispose()
     {
         TaskScheduler.UnobservedTaskException -= OnUnobservedTaskException;
-        this.kernel.Dispose();
+        var debug = false;
+#if DEBUG
+        debug = true;
+#endif
+        var logger = this.kernel.Get<ILogger>();
+        // Because of unordered disposal in the kernel, that any Flecs operations can crash after World disposal,
+        // and there not being a reliable way to check if the World has been disposed, the World disposal operation
+        // is moved outside of the kernel, and World.Quit() is used inside. See EcsRunner.
+        var ecsContainer = this.kernel.Get<EcsContainer>();
+
+        if (debug)
+        {
+            var stopwatch = new Stopwatch();
+
+            stopwatch.Start();
+            this.kernel.Dispose();
+            logger.Debug("Kernel disposal took {0}ms", stopwatch.ElapsedMilliseconds);
+
+            stopwatch.Restart();
+            ecsContainer.World.Dispose();
+            logger.Debug("Flecs World disposal took {0}ms", stopwatch.ElapsedMilliseconds);
+        }
+        else
+        {
+            this.kernel.Dispose();
+            ecsContainer.World.Dispose();
+        }
     }
 
     private void OnUnobservedTaskException(object? sender, UnobservedTaskExceptionEventArgs e)

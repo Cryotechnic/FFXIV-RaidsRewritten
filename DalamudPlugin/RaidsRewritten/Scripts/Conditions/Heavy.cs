@@ -1,23 +1,44 @@
-﻿using Flecs.NET.Core;
+﻿using System.Numerics;
+using Flecs.NET.Core;
 using RaidsRewritten.Scripts.Components;
 
 namespace RaidsRewritten.Scripts.Conditions;
 
 public class Heavy
 {
-    public const int Id = 0x8EA11;
+    private const string IconId = "215002";
 
     public record struct Component(object _);
 
-    public static void ApplyToTarget(Entity target, float duration, bool extendDuration = false, bool overrideExistingDuration = false)
+    public static void ApplyToTarget(
+        Entity target,
+        float duration,
+        bool extendDuration = false,
+        bool overrideExistingDuration = false)
+    {
+        ApplyToTarget(target, duration, ConditionTable.Id.Heavy, extendDuration, overrideExistingDuration);
+    }
+
+    public static void ApplyToTarget(
+        Entity target,
+        float duration,
+        BigInteger id,
+        bool extendDuration = false,
+        bool overrideExistingDuration = false,
+        bool isClientControlled = true)
     {
         DelayedAction.Create(target.CsWorld(), (ref Iter it) =>
         {
             var world = it.World();
 
-            var condition = Condition.ApplyToTarget(target, "Slowed", duration, Id, extendDuration, overrideExistingDuration);
+            var condition = Condition.ApplyToTarget(target, "Slowed", duration, id, extendDuration, overrideExistingDuration, isClientControlled);
 
-            condition.Set(new Condition.Status(215002, "Heavy", "Movement speed is reduced.")).Add<Condition.StatusEnfeeblement>();
+            condition
+                .Set(new Condition.NetworkMessage(Network.Message.Condition.Heavy))
+                .Set(new Condition.StatusIconReplacement(IconId, ConditionTable.IconToReplace.Heavy))
+                .Set(new Condition.Status(ConditionTable.IconToReplace.Heavy, "Heavy", "Movement speed is reduced."))
+                .Set(new Condition.StatusTooltip("Heavy (RaidsRewritten)"))
+                .Add<Condition.StatusEnfeeblement>();
 
             // Application VFX
             world.Entity()

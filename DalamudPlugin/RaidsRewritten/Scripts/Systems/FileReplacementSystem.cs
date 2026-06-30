@@ -1,13 +1,11 @@
 ﻿using Flecs.NET.Core;
 using RaidsRewritten.Game;
 using RaidsRewritten.Interop;
-using RaidsRewritten.Log;
 using RaidsRewritten.Scripts.Components;
-using RaidsRewritten.Scripts.Conditions;
 
 namespace RaidsRewritten.Scripts.Systems;
 
-public class FileReplacementSystem(ResourceLoader resourceLoader, ILogger logger) : ISystem
+public class FileReplacementSystem(ResourceLoader resourceLoader) : ISystem
 {
     public void Register(World world)
     {
@@ -37,8 +35,8 @@ public class FileReplacementSystem(ResourceLoader resourceLoader, ILogger logger
                 }
             });
 
-        world.System<Condition.Component, FileReplacement>()
-            .Each((ref Condition.Component condition, ref FileReplacement replace) =>
+        world.System<FlyText, FileReplacement>().Immediate()
+            .Each((ref FlyText _, ref FileReplacement replace) =>
             {
                 if (replace.FramesSinceApplication < 0)
                 {

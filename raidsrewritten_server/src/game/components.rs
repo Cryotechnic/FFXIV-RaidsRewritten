@@ -1,4 +1,4 @@
-use crate::game::role;
+use crate::game::{condition, role};
 use flecs_ecs::prelude::*;
 use socketioxide::{SocketIo, socket::Sid};
 use std::collections::HashMap;
@@ -78,4 +78,40 @@ pub struct Transform {
     pub y: f32,
     pub z: f32,
     pub rotation: f32,
+}
+
+// Conditions ===============
+
+// Meant to be set to the Player entity, indicating a conditions update should occur
+#[derive(Component)]
+pub struct BroadcastConditions;
+
+#[derive(Component, Debug)]
+pub struct Condition {
+    pub id: u128,
+    pub condition: condition::Condition,
+    pub time_remaining: f32,
+}
+
+// Meant to be set to the Condition entity, indicating this particular condition is not new and has already been broadcasted to clients
+#[derive(Component)]
+pub struct BroadcastedCondition;
+
+#[derive(Component)]
+pub struct ClientCondition;
+
+pub mod conditions {
+    use flecs_ecs::prelude::*;
+
+    #[derive(Component, Debug)]
+    pub struct Knockback {
+        pub knockback_direction_x: f32,
+        pub knockback_direction_z: f32,
+    }
+
+    #[derive(Component, Debug)]
+    pub struct Paralysis {
+        pub stun_interval: f32,
+        pub stun_duration: f32,
+    }
 }

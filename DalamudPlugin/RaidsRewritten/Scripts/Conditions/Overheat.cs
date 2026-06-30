@@ -5,16 +5,21 @@ namespace RaidsRewritten.Scripts.Conditions;
 
 public class Overheat
 {
+    private const string IconId = "214278";
+
     public record struct Component(object _);
 
-    public static void ApplyToTarget(Entity target, float duration, int id = 0)
+    public static void ApplyToTarget(Entity target, float duration)
     {
         DelayedAction.Create(target.CsWorld(), (ref Iter it) =>
         {
             var world = target.CsWorld();
-            var entity = Condition.ApplyToTarget(target, "Overheated", duration, id, false, false);
+            var entity = Condition.ApplyToTarget(target, "Overheated", duration, ConditionTable.Id.Overheat, false, false);
 
-            entity.Set(new Condition.Status(214278, "Overheated", "Body is overheated, forcing forward movement.")).Add<Condition.StatusEnfeeblement>();
+            entity.Set(new Condition.StatusIconReplacement(IconId, ConditionTable.IconToReplace.Overheat))
+                .Set(new Condition.Status(ConditionTable.IconToReplace.Overheat, "Overheated", "Body is overheated, forcing forward movement."))
+                .Set(new Condition.StatusTooltip("Overheated (RaidsRewritten)"))
+                .Add<Condition.StatusEnfeeblement>();
 
             if (!entity.Has<Component>())
             {

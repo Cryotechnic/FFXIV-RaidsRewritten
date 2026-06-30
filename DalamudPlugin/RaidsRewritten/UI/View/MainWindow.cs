@@ -96,6 +96,8 @@ public sealed partial class MainWindow : Window, IPluginUIView, IDisposable
         this.random = random;
         this.logger = logger;
 
+        encounterManager.EncounterLoaded += OpenWindow;
+
         var version = GetType().Assembly.GetName().Version?.ToString() ?? string.Empty;
         this.windowName = PluginInitializer.Name;
         if (version.Length > 0)
@@ -141,7 +143,7 @@ public sealed partial class MainWindow : Window, IPluginUIView, IDisposable
         ImGui.SetNextWindowSize(new Vector2(width, height), ImGuiCond.FirstUseEver);
         var minHeight = 250 * ImGuiHelpers.GlobalScale;
         ImGui.SetNextWindowSizeConstraints(new Vector2(width, minHeight), new Vector2(float.MaxValue, float.MaxValue));
-        if (ImGui.Begin(this.windowName, ref this.visible))
+        if (ImGui.Begin($"{this.windowName}###{PluginInitializer.Name}", ref this.visible))
         {
             this.World.DeferBegin();
             DrawContents();
@@ -152,7 +154,13 @@ public sealed partial class MainWindow : Window, IPluginUIView, IDisposable
 
     public void Dispose()
     {
+        encounterManager.EncounterLoaded -= OpenWindow;
         windowSystem.RemoveWindow(this);
+    }
+
+    private void OpenWindow()
+    {
+        Visible = true;
     }
 
     private void DrawContents()
