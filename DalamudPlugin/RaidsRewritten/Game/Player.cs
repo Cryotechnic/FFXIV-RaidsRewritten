@@ -21,6 +21,7 @@ public sealed class Player(DalamudServices dalamud, PlayerManager playerManager,
     private Query<Condition.Component, Paralysis.Component> paralysisQuery;
     private Query<Condition.Component, Heavy.Component> heavyQuery;
     private Query<Condition.Component, Pacify.Component> pacifyQuery;
+    private Query<Condition.Component, Silence.Component> silenceQuery;
     private Query<Condition.Component, Sleep.Component> sleepQuery;
     private Query<Condition.Component, Hysteria.Component> hysteriaQuery;
     private Query<Condition.Component> overheatQuery;
@@ -48,6 +49,7 @@ public sealed class Player(DalamudServices dalamud, PlayerManager playerManager,
         this.paralysisQuery.SafeDispose();
         this.heavyQuery.SafeDispose();
         this.pacifyQuery.SafeDispose();
+        this.silenceQuery.SafeDispose();
         this.sleepQuery.SafeDispose();
         this.hysteriaQuery.SafeDispose();
         this.overheatQuery.SafeDispose();
@@ -67,6 +69,8 @@ public sealed class Player(DalamudServices dalamud, PlayerManager playerManager,
         this.heavyQuery = world.QueryBuilder<Condition.Component, Heavy.Component>()
             .With<LocalPlayer>().Up().Cached().Build();
         this.pacifyQuery = world.QueryBuilder<Condition.Component, Pacify.Component>()
+            .With<LocalPlayer>().Up().Cached().Build();
+        this.silenceQuery = world.QueryBuilder<Condition.Component, Silence.Component>()
             .With<LocalPlayer>().Up().Cached().Build();
         this.sleepQuery = world.QueryBuilder<Condition.Component, Sleep.Component>()
             .With<LocalPlayer>().Up().Cached().Build();
@@ -151,6 +155,9 @@ public sealed class Player(DalamudServices dalamud, PlayerManager playerManager,
                 Entity heavyEntity = this.heavyQuery.First();
 
                 Entity pacifyEntity = this.pacifyQuery.First();
+
+                Entity silenceEntity = this.silenceQuery.First();
+                disableAllActions |= silenceEntity.IsValid();
 
                 Entity overheatEntity = this.overheatQuery.First();
 
