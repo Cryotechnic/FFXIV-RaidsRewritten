@@ -7,6 +7,7 @@ using ECommons.Hooks.ActionEffectTypes;
 using ECommons.MathHelpers;
 using Flecs.NET.Core;
 using RaidsRewritten.Game;
+using RaidsRewritten.Scripts.Attacks;
 using RaidsRewritten.Scripts.Components;
 using RaidsRewritten.Scripts.Conditions;
 using RaidsRewritten.Spawn;
@@ -14,201 +15,149 @@ using RaidsRewritten.Utility;
 
 namespace RaidsRewritten.Scripts.Encounters.UWU;
 
+/// <summary>
+/// On every Great Whirlwind cast, four enumeration towers spawn inside the whirlwind zone.
+/// Each party member is assigned a tower by party list index; standing in the wrong tower (or none) fails.
+/// </summary>
 public class GreatWhirlwindStacks : Mechanic
 {
-    private const float StackRadius = 6f;
-    private const int RequiredStackSize = 4;
-    private const float SnapshotDelay = 0.5f;
-    private const float FireResDownDuration = 15f;
+    private const float TowerRadius = 3f;
+    private const float WhirlwindRadius = 12f;
+    private const float OmenDuration = 3.5f;
     private const float HysteriaDuration = 10f;
     private const float MarchDuration = 15f;
     private const int FireResDownId = 0xFE01;
-    // DSR DarkdragonDive tower VFX family (Omen 120, 335, 336, 337)
-    private static readonly string[] TowerOmenVfxByCount =
+    private const int FireResDownDuration = 15;
+
+    private static readonly string[] TowerOmenVfxByNumber =
     [
-        "vfx/omen/eff/m0119_trap_01t.avfx",  // [0] unused
-        "vfx/omen/eff/m0119_trap_01t.avfx",  // [1] 1-person bait tower
-        "vfx/omen/eff/general_trap_o2x.avfx", // [2] 2-person tower
-        "vfx/omen/eff/general_trap_o3x.avfx", // [3] 3-person tower
-        "vfx/omen/eff/general_trap_o4x.avfx", // [4] 4-person tower
+        "vfx/omen/eff/m0119_trap_01t.avfx",
+        "vfx/omen/eff/general_trap_o2x.avfx",
+        "vfx/omen/eff/general_trap_o3x.avfx",
+        "vfx/omen/eff/general_trap_o4x.avfx",
     ];
-    private const float WhirlwindRadius = 12f;
 
     public int RngSeed { get; set; }
     public bool RandomTowerOffset { get; set; } = true;
     private Random random = new();
 
-    private readonly List<Vector3> pendingWhirlwindPositions = [];
     private readonly List<Entity> attacks = [];
-    private readonly List<Entity> activeTowerOmens = [];
-    private readonly List<Entity> activeWhirlwindCircles = [];
+    private readonly List<Entity> activeOmens = [];
 
     public override void Reset()
     {
         random = new Random(RngSeed);
-        pendingWhirlwindPositions.Clear();
-        RemoveTowerOmens();
-        RemoveWhirlwindCircles();
+        ClearOmens();
         foreach (var attack in attacks)
         {
-            attack.Destruct();
+            if (attack.IsValid()) attack.Destruct();
         }
         attacks.Clear();
     }
 
     public override void OnDirectorUpdate(DirectorUpdateCategory a3)
     {
-        if (a3 == DirectorUpdateCategory.Wipe ||
-            a3 == DirectorUpdateCategory.Recommence)
-        {
+        if (a3 == DirectorUpdateCategory.Wipe || a3 == DirectorUpdateCategory.Recommence)
             Reset();
-        }
     }
 
-    public override void OnCombatEnd()
-    {
-        Reset();
-    }
+    public override void OnCombatEnd() => Reset();
 
     public override void OnActionEffectEvent(ActionEffectSet set)
     {
         if (set.Action == null) { return; }
         if (set.Action.Value.RowId != UwuData.Garuda.GreatWhirlwind) { return; }
 
-        pendingWhirlwindPositions.Add(set.Position);
-
-        if (pendingWhirlwindPositions.Count >= 2)
-        {
-            pendingWhirlwindPositions.Clear();
-            var player = Dalamud.ObjectTable.LocalPlayer;
-            if (player == null) { return; }
-            SpawnTowersInZone(player.Position, previewDelay: 0f);
-        }
+        SpawnEnumerationTowers(set.Position);
     }
 
-    private void SpawnTowersInZone(Vector3 zoneCenter, float previewDelay)
+    private void SpawnEnumerationTowers(Vector3 zoneCenter)
     {
-#if DEBUG
-        // Spawn one whirlwind zone visual centered on the player (persists until snapshot)
-        var whirlwindCircle = World.Entity()
-            .Set(new StaticVfx("vfx/omen/eff/tatumaki0m.avfx"))
-            .Set(new Position(zoneCenter))
-            .Set(new Rotation(0f))
-            .Set(new Scale(new Vector3(WhirlwindRadius, WhirlwindRadius, WhirlwindRadius)))
-            .Add<Omen>();
-        activeWhirlwindCircles.Add(whirlwindCircle);
-#endif
-
-        // Determine soaker split FIRST
-        int r1 = random.Next(1, 4); // 1, 2, or 3  →  splits: 1+3, 2+2, 3+1
-        var requiredCounts = new List<int>(2) { r1, RequiredStackSize - r1 };
-
-        // Place 2 towers at random offsets within WhirlwindRadius of the zone center
-        var towerPositions = new List<Vector3>(2);
-        for (int i = 0; i < 2; i++)
+        var towerPositions = new Vector3[4];
+        for (int i = 0; i < 4; i++)
         {
-            Vector3 pos;
             if (RandomTowerOffset)
             {
                 var angle = random.NextSingle() * MathF.PI * 2f;
-                var dist = (0.3f + random.NextSingle() * 0.4f) * WhirlwindRadius;
-                pos = new Vector3(
+                var dist = (0.25f + random.NextSingle() * 0.55f) * WhirlwindRadius;
+                towerPositions[i] = new Vector3(
                     zoneCenter.X + MathF.Sin(angle) * dist,
                     zoneCenter.Y,
                     zoneCenter.Z + MathF.Cos(angle) * dist);
             }
             else
             {
-                // Fixed positions within zone: +X and -X at half radius
-                var offset = (i == 0 ? 1f : -1f) * WhirlwindRadius * 0.5f;
-                pos = new Vector3(zoneCenter.X + offset, zoneCenter.Y, zoneCenter.Z);
+                var angle = i * MathF.PI / 2f + MathF.PI / 4f;
+                var dist = WhirlwindRadius * 0.55f;
+                towerPositions[i] = new Vector3(
+                    zoneCenter.X + MathF.Sin(angle) * dist,
+                    zoneCenter.Y,
+                    zoneCenter.Z + MathF.Cos(angle) * dist);
             }
-            towerPositions.Add(pos);
         }
 
 #if DEBUG
-        for (int i = 0; i < towerPositions.Count; i++)
+        foreach (var omen in activeOmens)
         {
-            var count = Math.Clamp(requiredCounts[i], 1, TowerOmenVfxByCount.Length - 1);
-            var vfx = TowerOmenVfxByCount[count];
+            if (omen.IsValid()) omen.Destruct();
+        }
+        activeOmens.Clear();
+
+        var whirlwindCircle = World.Entity()
+            .Set(new StaticVfx("vfx/omen/eff/tatumaki0m.avfx"))
+            .Set(new Position(zoneCenter))
+            .Set(new Rotation(0f))
+            .Set(new Scale(new Vector3(WhirlwindRadius)))
+            .Add<Omen>();
+        activeOmens.Add(whirlwindCircle);
+
+        for (int i = 0; i < 4; i++)
+        {
             var towerOmen = World.Entity()
-                .Set(new StaticVfx(vfx))
+                .Set(new StaticVfx(TowerOmenVfxByNumber[i]))
                 .Set(new Position(towerPositions[i]))
                 .Set(new Rotation(0f))
                 .Set(new Scale(new Vector3(3f, 5f, 3f)))
                 .Add<Omen>();
-            activeTowerOmens.Add(towerOmen);
+            activeOmens.Add(towerOmen);
         }
 #endif
 
+        var assignedTower = GetAssignedTowerIndex();
         var da = DelayedAction.Create(World, () =>
         {
-            SnapshotStacks(towerPositions, requiredCounts);
-        }, previewDelay + SnapshotDelay);
+            SnapshotEnumeration(towerPositions, assignedTower);
+        }, OmenDuration);
         attacks.Add(da);
     }
 
-    private void RemoveTowerOmens()
+    private int GetAssignedTowerIndex()
     {
-        foreach (var omen in activeTowerOmens)
+        var localPlayer = Dalamud.ObjectTable.LocalPlayer;
+        if (localPlayer == null) { return 0; }
+
+        int index = 0;
+        foreach (var member in Dalamud.ObjectTable.PlayerObjects)
         {
-            if (omen.IsValid()) omen.Destruct();
+            if (member.GameObjectId == localPlayer.GameObjectId)
+                return index % 4;
+            index++;
         }
-        activeTowerOmens.Clear();
+        return 0;
     }
 
-    private void RemoveWhirlwindCircles()
+    private void SnapshotEnumeration(Vector3[] towerPositions, int assignedTower)
     {
-        foreach (var circle in activeWhirlwindCircles)
-        {
-            if (circle.IsValid()) circle.Destruct();
-        }
-        activeWhirlwindCircles.Clear();
-    }
-
-#if DEBUG
-    public override void DebugSimulate()
-    {
-        var player = Dalamud.ObjectTable.LocalPlayer;
-        if (player == null) { return; }
-
-        SpawnTowersInZone(player.Position, previewDelay: 2.0f);
-    }
-#endif
-
-    private void SnapshotStacks(List<Vector3> towerPositions, List<int> requiredCounts)
-    {
-        RemoveTowerOmens();
-        RemoveWhirlwindCircles();
+        ClearOmens();
 
         var player = Dalamud.ObjectTable.LocalPlayer;
         if (player == null || player.IsDead) { return; }
 
         var playerPos2 = player.Position.ToVector2();
+        var assignedPos2 = towerPositions[assignedTower].ToVector2();
+        bool inAssignedTower = Vector2.Distance(playerPos2, assignedPos2) <= TowerRadius;
 
-        // Count soakers per tower; track which tower the local player is standing in
-        var soakerCounts = new int[towerPositions.Count];
-        int playerTowerIndex = -1;
-        for (int i = 0; i < towerPositions.Count; i++)
-        {
-            var towerPos2 = towerPositions[i].ToVector2();
-
-            if (Vector2.Distance(playerPos2, towerPos2) <= StackRadius)
-                playerTowerIndex = i;
-
-            foreach (var member in Dalamud.ObjectTable.PlayerObjects)
-            {
-                if (member.IsDead) { continue; }
-                if (Vector2.Distance(member.Position.ToVector2(), towerPos2) <= StackRadius)
-                    soakerCounts[i]++;
-            }
-        }
-
-        // Success: player is in a tower that met its required soaker count
-        bool playerTowerSatisfied = playerTowerIndex >= 0
-            && soakerCounts[playerTowerIndex] >= requiredCounts[playerTowerIndex];
-
-        if (playerTowerSatisfied)
+        if (inAssignedTower)
         {
             CommonQueries.LocalPlayerQuery.Each((Entity e, ref Player.Component _) =>
             {
@@ -228,7 +177,6 @@ public class GreatWhirlwindStacks : Mechanic
             return;
         }
 
-        // Failure: player not in a tower, or tower under-soaked
         if (player.HasTranscendance())
         {
             this.VfxSpawn.PlayInvulnerabilityEffect(player);
@@ -242,6 +190,15 @@ public class GreatWhirlwindStacks : Mechanic
         });
     }
 
+    private void ClearOmens()
+    {
+        foreach (var omen in activeOmens)
+        {
+            if (omen.IsValid()) omen.Destruct();
+        }
+        activeOmens.Clear();
+    }
+
     private static void ApplyFireResistanceDown(Entity target, float duration)
     {
         DelayedAction.Create(target.CsWorld(), (ref Iter it) =>
@@ -253,4 +210,13 @@ public class GreatWhirlwindStacks : Mechanic
                 .Add<Condition.StatusEnfeeblement>();
         }, 0, true).ChildOf(target);
     }
+
+#if DEBUG
+    public override void DebugSimulate()
+    {
+        var player = Dalamud.ObjectTable.LocalPlayer;
+        if (player == null) { return; }
+        SpawnEnumerationTowers(player.Position);
+    }
+#endif
 }
