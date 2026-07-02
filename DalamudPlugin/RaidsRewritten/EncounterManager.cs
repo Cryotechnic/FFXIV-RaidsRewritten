@@ -33,6 +33,8 @@ public sealed class EncounterManager(
 {
     public IEncounter[] Encounters => encounters;
     public IEncounter? ActiveEncounter { get; private set; }
+    public IEncounter? ForcedEncounter { get; private set; }
+    public bool IsEncounterOverridden => this.ForcedEncounter != null;
     public bool InCombat => inCombat ?? false;
 
     public event Action? EncounterLoaded;
@@ -71,23 +73,46 @@ public sealed class EncounterManager(
     }
     public void ForceActivateEncounter(IEncounter? encounter)
     {
-        ActiveEncounter?.Unload();
+        this.ForcedEncounter = encounter;
+        if (encounter == null)
+        {
+            this.ActivateEncounterForCurrentTerritory();
+            return;
+        }
+
+        this.SetActiveEncounter(encounter, "Force-activated encounter: {0}");
+    }
+
+    private void ActivateEncounterForCurrentTerritory()
+    {
+        this.ActivateEncounterForTerritory(dalamud.ClientState.TerritoryType);
+    }
+
+    private void ActivateEncounterForTerritory(uint territoryId)
+    {
+        if (this.encounterMap.TryGetValue(territoryId, out var encounter))
+        {
+            this.SetActiveEncounter(encounter, "Active encounter set to {0}");
+            return;
+        }
+
+        this.ActiveEncounter?.Unload();
+        this.ActiveEncounter = null;
+        statusPartyListProcessor.Reset();
+    }
+
+    private void SetActiveEncounter(IEncounter encounter, string logMessage)
+    {
+        this.ActiveEncounter?.Unload();
         statusPartyListProcessor.Reset();
 
-        if (encounter != null)
+        this.ActiveEncounter = encounter;
+        encounter.RefreshMechanics();
+        logger.Info(logMessage, encounter.Name);
+        if (!configuration.EverythingDisabled)
         {
-            ActiveEncounter = encounter;
-            encounter.RefreshMechanics();
-            logger.Info("Force-activated encounter: {0}", encounter.Name);
-            if (!configuration.EverythingDisabled)
-            {
-                moodlesIPC.CheckMoodles();
-                EncounterLoaded?.Invoke();
-            }
-        }
-        else
-        {
-            ActiveEncounter = null;
+            moodlesIPC.CheckMoodles();
+            EncounterLoaded?.Invoke();
         }
     }
 
@@ -103,24 +128,13 @@ public sealed class EncounterManager(
 
     private void OnTerritoryChanged(uint obj)
     {
-        ActiveEncounter?.Unload();
-        statusPartyListProcessor.Reset();
+        if (this.ForcedEncounter != null)
+        {
+            this.SetActiveEncounter(this.ForcedEncounter, "Active encounter overridden to {0}");
+            return;
+        }
 
-        if (this.encounterMap.TryGetValue(obj, out var encounter))
-        {
-            ActiveEncounter = encounter;
-            encounter.RefreshMechanics();
-            logger.Info("Active encounter set to {0}", encounter.Name);
-            if (!configuration.EverythingDisabled)
-            {
-                moodlesIPC.CheckMoodles();
-                EncounterLoaded?.Invoke();
-            }
-        }
-        else
-        {
-            ActiveEncounter = null;
-        }
+        this.ActivateEncounterForTerritory(obj);
     }
 
     private void OnMapEffect(uint Position, ushort Param1, ushort Param2)
