@@ -23,7 +23,7 @@ namespace RaidsRewritten.Scripts.Encounters.UWU;
 /// While the mechanic is active (started by Eye of the Storm):
 ///   - Players INSIDE a bubble accumulate Light Resistance Down stacks.
 ///   - Players OUTSIDE all bubbles accumulate Dark Resistance Down stacks.
-///   - The opposing stack type decays by 1 each tick.
+///   - The opposing debuff is removed entirely when switching sides.
 ///
 /// Reaching <see cref="MaxStacks"/> of either type stuns the player.
 /// Feather Rain clears the stun (stacks remain for ongoing tension).
@@ -36,7 +36,6 @@ public class GigastormCleanses : Mechanic
 
     private const int MaxStacks = 5;
     private const float StunDuration = 30f;
-    private const float StackConditionDuration = 999f;
     private const float BubbleRadius = 10f;
 
     // Wind-Scoured stacks 1-5: icons 219261-219265
@@ -136,15 +135,13 @@ public class GigastormCleanses : Mechanic
         {
             if (inside)
             {
-                // Inside bubble → gain Light, decay Dark
+                ClearOppositeStack(isLight: true);
                 IncrementStack(e, isLight: true);
-                DecrementStack(isLight: false);
             }
             else
             {
-                // Outside bubble → gain Dark, decay Light
+                ClearOppositeStack(isLight: false);
                 IncrementStack(e, isLight: false);
-                DecrementStack(isLight: true);
             }
         });
     }
@@ -160,7 +157,7 @@ public class GigastormCleanses : Mechanic
 
         ref Entity condRef = ref (isLight ? ref lightCondition : ref darkCondition);
 
-        var cond = Condition.ApplyToTarget(playerEntity, name, StackConditionDuration, conditionId, false, true);
+        var cond = Condition.ApplyToTarget(playerEntity, name, float.PositiveInfinity, conditionId, false, true);
         cond
             .Set(new Condition.Status(icon, name, desc))
             .Set(new Condition.StatusTooltip($"{name} (RaidsRewritten)"))
@@ -180,27 +177,17 @@ public class GigastormCleanses : Mechanic
         else { darkStacks = 0; DestroyCondition(ref darkCondition); }
     }
 
-    private void DecrementStack(bool isLight)
+    private void ClearOppositeStack(bool isLight)
     {
         if (isLight)
         {
-            if (lightStacks <= 0) { return; }
-            lightStacks = Math.Max(0, lightStacks - 1);
-            if (lightStacks == 0) { DestroyCondition(ref lightCondition); return; }
-            if (lightCondition.IsValid())
-                lightCondition
-                    .Set(new Condition.Status(LightStatusIcons[lightStacks], "Wind-Scoured", "Relentless winds have scoured away your resistance."))
-                    .Set(new Condition.StatusTooltip("Wind-Scoured (RaidsRewritten)"));
+            darkStacks = 0;
+            DestroyCondition(ref darkCondition);
         }
         else
         {
-            if (darkStacks <= 0) { return; }
-            darkStacks = Math.Max(0, darkStacks - 1);
-            if (darkStacks == 0) { DestroyCondition(ref darkCondition); return; }
-            if (darkCondition.IsValid())
-                darkCondition
-                    .Set(new Condition.Status(DarkStatusIcons[darkStacks], "Tempest Bound", "Caught outside the barrier, the tempest bears down on you with full force."))
-                    .Set(new Condition.StatusTooltip("Tempest Bound (RaidsRewritten)"));
+            lightStacks = 0;
+            DestroyCondition(ref lightCondition);
         }
     }
 
