@@ -14,6 +14,7 @@ public class ConditionTable
         public const int Paralysis = 0x91FA; // 37370
         public const int Sleep = 0x51EE9; // 335593
         public const int Stun = 0x5709; // 22281
+        public const int Silence = 0xFE10;
         public const int EpicHero = 4192;
         public const int FatedHero = 4194;
     }
@@ -31,6 +32,7 @@ public class ConditionTable
         public const int Paralysis = 210301;
         public const int Sleep = 210303;
         public const int Stun = 210305;
+        public const int Silence = 210306;
         public const int EpicHero = 216301;
         public const int FatedHero = 216302;
     }
