@@ -30,7 +30,7 @@ namespace RaidsRewritten.Scripts.Encounters.UWU;
 /// </summary>
 public class GigastormCleanses : Mechanic
 {
-    // Custom condition IDs — distinct from all vanilla status IDs
+    // Custom condition IDs - distinct from all vanilla status IDs
     private const int LightExposureId = 0xFE02;
     private const int DarkExposureId = 0xFE03;
 
@@ -166,7 +166,7 @@ public class GigastormCleanses : Mechanic
 
         if (count < MaxStacks) { return; }
 
-        // Hit 5 stacks — stun the player and reset this stack type.
+        // Hit 5 stacks - stun the player and reset this stack type.
         var player = Dalamud.ObjectTable.LocalPlayer;
         if (player != null && player.HasTranscendance())
             this.VfxSpawn.PlayInvulnerabilityEffect(player);
@@ -220,7 +220,7 @@ public class GigastormCleanses : Mechanic
 
         Reset();
 
-        // Place the bubble 15y north of the player — walk in to gain Light stacks, stay out for Dark.
+        // Place the bubble 15y north of the player - walk in to gain Light stacks, stay out for Dark.
         var bubbleCenter = player.Position + new Vector3(0f, 0f, -15f);
         bubblePositions.Add(bubbleCenter);
         mechanicActive = true;

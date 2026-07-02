@@ -14,7 +14,7 @@ public class ForcedMarch : ISystem
     public record struct Component(Vector3 MoveDirection);
 
     /// <summary>
-    /// Pending debuff component — no movement yet, just the warning icon.
+    /// Pending debuff component - no movement yet, just the warning icon.
     /// Stores the direction to march when the debuff expires.
     /// </summary>
     public record struct Pending(Vector3 MoveDirection, float MarchDuration);
