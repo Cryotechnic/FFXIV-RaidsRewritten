@@ -20,6 +20,7 @@ using RaidsRewritten.Spawn;
 using RaidsRewritten.UI.Util;
 using RaidsRewritten.Utility;
 using ZLinq;
+using ZLinq;
 
 namespace RaidsRewritten.UI.View;
 
@@ -257,16 +258,31 @@ public sealed partial class MainWindow : Window, IPluginUIView, IDisposable
         using var mainTab = ImRaii.TabItem("Main");
         if (!mainTab) return;
 
+#if DEBUG
+        DrawEncounterOverrideSection();
+        ImGui.Spacing();
+#endif
+
         var encounterText = new StringBuilder("Active Encounter: ");
         if (encounterManager.ActiveEncounter == null)
         {
             encounterText.Append("None");
             ImGui.Text(encounterText.ToString());
+#if DEBUG
+            ImGui.TextWrapped("Use Encounter Override above to test mechanics outside their duty.");
+#endif
         }
         else
         {
             encounterText.Append(encounterManager.ActiveEncounter.Name);
+            if (encounterManager.IsEncounterOverridden)
+            {
+                encounterText.Append(" (Overridden)");
+            }
             ImGui.Text(encounterText.ToString());
+
+            var mechanicCount = encounterManager.ActiveEncounter.GetMechanics().AsValueEnumerable().Count();
+            ImGui.Text($"Loaded mechanics: {mechanicCount}");
 
             using (ImRaii.PushIndent())
 #if !DEBUG

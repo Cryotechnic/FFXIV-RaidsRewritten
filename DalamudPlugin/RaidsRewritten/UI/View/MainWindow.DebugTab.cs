@@ -17,6 +17,7 @@ using RaidsRewritten.Scripts.Components;
 using RaidsRewritten.Scripts.Conditions;
 using RaidsRewritten.Scripts.Models;
 using RaidsRewritten.Utility;
+using ZLinq;
 
 namespace RaidsRewritten.UI.View;
 
@@ -860,6 +861,16 @@ public partial class MainWindow
             }
         }
 
+        if (ImGui.CollapsingHeader("Encounter Override", ImGuiTreeNodeFlags.DefaultOpen))
+        {
+            DrawEncounterOverrideSection();
+        }
+
+        if (ImGui.CollapsingHeader("Mechanic Triggers", ImGuiTreeNodeFlags.DefaultOpen))
+        {
+            DrawMechanicTriggersSection();
+        }
+
         if (debug)
         {
             if (ImGui.CollapsingHeader("Models"))
@@ -892,98 +903,125 @@ public partial class MainWindow
                     debugSpawnedModel = default;
                 }
             }
+        }
+    }
 
-            if (ImGui.CollapsingHeader("Encounter Override"))
+    private void DrawEncounterOverrideSection()
+    {
+        if (ImGui.Button("Clear Override"))
+        {
+            encounterManager.ForceActivateEncounter(null);
+        }
+
+        foreach (var enc in encounterManager.Encounters)
+        {
+            SameLineIfFits(enc.Name);
+            var isActive = encounterManager.ForcedEncounter == enc;
+            if (isActive)
             {
-                if (ImGui.Button("Clear Override"))
-                {
-                    encounterManager.ForceActivateEncounter(null);
-                }
-
-                foreach (var enc in encounterManager.Encounters)
-                {
-                    SameLineIfFits(enc.Name);
-                    if (ImGui.Button(enc.Name))
-                    {
-                        encounterManager.ForceActivateEncounter(enc);
-                    }
-                }
-
-                ImGui.TextColored(new Vector4(1, 1, 0, 1), "Active: " + (encounterManager.ActiveEncounter?.Name ?? "None"));
+                ImGui.PushStyleColor(ImGuiCol.Button, new Vector4(0.2f, 0.5f, 0.2f, 1f));
             }
 
-            if (ImGui.CollapsingHeader("Mechanic Triggers"))
+            if (ImGui.Button(enc.Name))
             {
-                if (encounterManager.ActiveEncounter == null)
-                {
-                    ImGui.Text("No active encounter");
-                }
-                else
-                {
-                    ImGui.Text("Global Events:");
-                    if (ImGui.Button("Combat Start"))
-                    {
-                        foreach (var mechanic in encounterManager.ActiveEncounter.GetMechanics())
-                        {
-                            mechanic.OnCombatStart();
-                        }
-                    }
-                    SameLineIfFits("Combat End");
-                    if (ImGui.Button("Combat End"))
-                    {
-                        foreach (var mechanic in encounterManager.ActiveEncounter.GetMechanics())
-                        {
-                            mechanic.OnCombatEnd();
-                        }
-                    }
-                    SameLineIfFits("Director: Commence");
-                    if (ImGui.Button("Director: Commence"))
-                    {
-                        encounterManager.ActiveEncounter.IncrementRngSeed();
-                        foreach (var mechanic in encounterManager.ActiveEncounter.GetMechanics())
-                        {
-                            mechanic.OnDirectorUpdate(DirectorUpdateCategory.Commence);
-                        }
-                    }
-                    SameLineIfFits("Director: Wipe");
-                    if (ImGui.Button("Director: Wipe"))
-                    {
-                        foreach (var mechanic in encounterManager.ActiveEncounter.GetMechanics())
-                        {
-                            mechanic.OnDirectorUpdate(DirectorUpdateCategory.Wipe);
-                        }
-                    }
+                encounterManager.ForceActivateEncounter(enc);
+            }
 
-                    ImGui.Separator();
-                    ImGui.Text("Individual Mechanics:");
-                    foreach (var mechanic in encounterManager.ActiveEncounter.GetMechanics())
-                    {
-                        var name = mechanic.GetType().Name;
-                        if (ImGui.TreeNode(name))
-                        {
-                            if (ImGui.Button($"Simulate##{name}"))
-                            {
-                                mechanic.DebugSimulate();
-                            }
-                            SameLineIfFits($"OnCombatStart##{name}");
-                            if (ImGui.Button($"OnCombatStart##{name}"))
-                            {
-                                mechanic.OnCombatStart();
-                            }
-                            SameLineIfFits($"OnCombatEnd##{name}");
-                            if (ImGui.Button($"OnCombatEnd##{name}"))
-                            {
-                                mechanic.OnCombatEnd();
-                            }
-                            SameLineIfFits($"Reset##{name}");
-                            if (ImGui.Button($"Reset##{name}"))
-                            {
-                                mechanic.Reset();
-                            }
-                            ImGui.TreePop();
-                        }
-                    }
+            if (isActive)
+            {
+                ImGui.PopStyleColor();
+            }
+        }
+
+        var activeName = encounterManager.ActiveEncounter?.Name ?? "None";
+        if (encounterManager.IsEncounterOverridden)
+        {
+            ImGui.TextColored(new Vector4(1, 1, 0, 1), $"Active: {activeName} (Overridden)");
+        }
+        else
+        {
+            ImGui.TextColored(new Vector4(0.7f, 0.7f, 0.7f, 1), "Active: " + activeName);
+        }
+    }
+
+    private void DrawMechanicTriggersSection()
+    {
+        if (encounterManager.ActiveEncounter == null)
+        {
+            ImGui.Text("No active encounter. Use Encounter Override to load one.");
+            return;
+        }
+
+        ImGui.Text("Global Events:");
+        if (ImGui.Button("Combat Start"))
+        {
+            foreach (var mechanic in encounterManager.ActiveEncounter.GetMechanics())
+            {
+                mechanic.OnCombatStart();
+            }
+        }
+        SameLineIfFits("Combat End");
+        if (ImGui.Button("Combat End"))
+        {
+            foreach (var mechanic in encounterManager.ActiveEncounter.GetMechanics())
+            {
+                mechanic.OnCombatEnd();
+            }
+        }
+        SameLineIfFits("Director: Commence");
+        if (ImGui.Button("Director: Commence"))
+        {
+            encounterManager.ActiveEncounter.IncrementRngSeed();
+            foreach (var mechanic in encounterManager.ActiveEncounter.GetMechanics())
+            {
+                mechanic.OnDirectorUpdate(DirectorUpdateCategory.Commence);
+            }
+        }
+        SameLineIfFits("Director: Wipe");
+        if (ImGui.Button("Director: Wipe"))
+        {
+            foreach (var mechanic in encounterManager.ActiveEncounter.GetMechanics())
+            {
+                mechanic.OnDirectorUpdate(DirectorUpdateCategory.Wipe);
+            }
+        }
+
+        ImGui.Separator();
+        ImGui.Text("Individual Mechanics:");
+        var mechanics = encounterManager.ActiveEncounter.GetMechanics().AsValueEnumerable().ToArray();
+        if (mechanics.Length == 0)
+        {
+            ImGui.TextWrapped("No mechanics loaded. Enable them on the Main tab or check encounter config toggles.");
+            return;
+        }
+
+        foreach (var mechanic in mechanics)
+        {
+            var name = mechanic.GetType().Name;
+            if (ImGui.TreeNode(name))
+            {
+#if DEBUG
+                if (ImGui.Button($"Simulate##{name}"))
+                {
+                    mechanic.DebugSimulate();
                 }
+                SameLineIfFits($"OnCombatStart##{name}");
+#endif
+                if (ImGui.Button($"OnCombatStart##{name}"))
+                {
+                    mechanic.OnCombatStart();
+                }
+                SameLineIfFits($"OnCombatEnd##{name}");
+                if (ImGui.Button($"OnCombatEnd##{name}"))
+                {
+                    mechanic.OnCombatEnd();
+                }
+                SameLineIfFits($"Reset##{name}");
+                if (ImGui.Button($"Reset##{name}"))
+                {
+                    mechanic.Reset();
+                }
+                ImGui.TreePop();
             }
         }
     }
