@@ -18,6 +18,7 @@ public class UwuRewritten : IEncounter
     private string GreatWhirlwindRandomOffsetKey => $"{Name}.GreatWhirlwindRandomOffset";
     private string DownburstKey => $"{Name}.Downburst";
     private string GigastormCleansesKey => $"{Name}.GigastormCleanses";
+    private string GarudaSkipPunishmentKey => $"{Name}.GarudaSkipPunishment";
 
     private readonly Mechanic.Factory mechanicFactory;
     private readonly DalamudServices dalamud;
@@ -40,6 +41,7 @@ public class UwuRewritten : IEncounter
             { GreatWhirlwindRandomOffsetKey, true },
             { DownburstKey, true },
             { GigastormCleansesKey, true },
+            { GarudaSkipPunishmentKey, true },
         };
     }
 
@@ -59,17 +61,28 @@ public class UwuRewritten : IEncounter
         var rngSeedString = configuration.GetEncounterSetting(RngSeedKey, string.Empty);
         int rngSeed = RandomUtilities.HashToRngSeed(rngSeedString);
 
-        if (configuration.GetEncounterSetting(GreatWhirlwindStacksKey, this.defaultBoolSettings[GreatWhirlwindStacksKey]))
+        if (configuration.GetEncounterSetting(GreatWhirlwindStacksKey, defaultBoolSettings[GreatWhirlwindStacksKey]))
         {
-            var greatWhirlwindStacks = mechanicFactory.Create<GreatWhirlwindStacks>();
-            greatWhirlwindStacks.RngSeed = rngSeed;
-            greatWhirlwindStacks.RandomTowerOffset = configuration.GetEncounterSetting(GreatWhirlwindRandomOffsetKey, this.defaultBoolSettings[GreatWhirlwindRandomOffsetKey]);
-            this.mechanics.Add(greatWhirlwindStacks);
+            var greatWhirlwind = mechanicFactory.Create<GreatWhirlwindStacks>();
+            greatWhirlwind.RngSeed = rngSeed;
+            greatWhirlwind.RandomTowerOffset = configuration.GetEncounterSetting(
+                GreatWhirlwindRandomOffsetKey, defaultBoolSettings[GreatWhirlwindRandomOffsetKey]);
+            this.mechanics.Add(greatWhirlwind);
         }
 
         if (configuration.GetEncounterSetting(DownburstKey, this.defaultBoolSettings[DownburstKey]))
         {
+        var downburstEnabled = configuration.GetEncounterSetting(DownburstKey, defaultBoolSettings[DownburstKey]);
+        var gigastormCleansesEnabled = configuration.GetEncounterSetting(GigastormCleansesKey, defaultBoolSettings[GigastormCleansesKey]);
+
+        if (downburstEnabled)
             this.mechanics.Add(mechanicFactory.Create<Downburst>());
+
+        if (gigastormCleansesEnabled)
+            this.mechanics.Add(mechanicFactory.Create<GigastormCleanses>());
+
+        if (configuration.GetEncounterSetting(GarudaSkipPunishmentKey, defaultBoolSettings[GarudaSkipPunishmentKey]))
+            this.mechanics.Add(mechanicFactory.Create<GarudaMechanicSkipPunishment>());
         }
 
         if (configuration.GetEncounterSetting(GigastormCleansesKey, this.defaultBoolSettings[GigastormCleansesKey]))
@@ -108,14 +121,13 @@ public class UwuRewritten : IEncounter
             RefreshMechanics();
         }
 
-        bool greatWhirlwindStacks = configuration.GetEncounterSetting(GreatWhirlwindStacksKey, this.defaultBoolSettings[GreatWhirlwindStacksKey]);
-        if (ImGui.Checkbox("Great Whirlwind Stacks", ref greatWhirlwindStacks))
-        {
-            configuration.EncounterSettings[GreatWhirlwindStacksKey] =
-                greatWhirlwindStacks ? bool.TrueString : bool.FalseString;
-            configuration.Save();
-            RefreshMechanics();
-        }
+        ImGui.Text("P1 - Garuda");
+        ImGui.Separator();
+        DrawBoolCheckbox("Great Whirlwind Enumeration", GreatWhirlwindStacksKey);
+        DrawBoolCheckbox("  Random Tower Positions", GreatWhirlwindRandomOffsetKey);
+        DrawBoolCheckbox("Downburst Soaking", DownburstKey);
+        DrawBoolCheckbox("Gigastorm / Cleanses", GigastormCleansesKey);
+        DrawBoolCheckbox("Garuda Skip Punishment", GarudaSkipPunishmentKey);
 
         bool randomTowerOffset = configuration.GetEncounterSetting(GreatWhirlwindRandomOffsetKey, this.defaultBoolSettings[GreatWhirlwindRandomOffsetKey]);
         if (ImGui.Checkbox("  Random Tower Positions", ref randomTowerOffset))
