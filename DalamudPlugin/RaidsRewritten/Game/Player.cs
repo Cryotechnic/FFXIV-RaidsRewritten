@@ -24,6 +24,7 @@ public sealed class Player(DalamudServices dalamud, PlayerManager playerManager,
     private Query<Condition.Component, Silence.Component> silenceQuery;
     private Query<Condition.Component, Sleep.Component> sleepQuery;
     private Query<Condition.Component, Hysteria.Component> hysteriaQuery;
+    private Query<Condition.Component, ForcedMarch.Component> forcedMarchQuery;
     private Query<Condition.Component> overheatQuery;
     private Query<Condition.Component> deepfreezeQuery;
 
@@ -52,6 +53,7 @@ public sealed class Player(DalamudServices dalamud, PlayerManager playerManager,
         this.silenceQuery.SafeDispose();
         this.sleepQuery.SafeDispose();
         this.hysteriaQuery.SafeDispose();
+        this.forcedMarchQuery.SafeDispose();
         this.overheatQuery.SafeDispose();
         this.deepfreezeQuery.SafeDispose();
     }
@@ -75,6 +77,8 @@ public sealed class Player(DalamudServices dalamud, PlayerManager playerManager,
         this.sleepQuery = world.QueryBuilder<Condition.Component, Sleep.Component>()
             .With<LocalPlayer>().Up().Cached().Build();
         this.hysteriaQuery = world.QueryBuilder<Condition.Component, Hysteria.Component>()
+            .With<LocalPlayer>().Up().Cached().Build();
+        this.forcedMarchQuery = world.QueryBuilder<Condition.Component, ForcedMarch.Component>()
             .With<LocalPlayer>().Up().Cached().Build();
         this.overheatQuery = world.QueryBuilder<Condition.Component>()
             .With<Overheat.Component>()
@@ -147,6 +151,8 @@ public sealed class Player(DalamudServices dalamud, PlayerManager playerManager,
                 Entity hysteriaEntity = this.hysteriaQuery.First();
                 disableAllActions |= hysteriaEntity.IsValid();
 
+                Entity forcedMarchEntity = this.forcedMarchQuery.First();
+
                 this.paralysisQuery.Each((Entity e, ref Condition.Component _, ref Paralysis.Component paralysis) =>
                 {
                     stun |= paralysis.StunActive;
@@ -184,7 +190,14 @@ public sealed class Player(DalamudServices dalamud, PlayerManager playerManager,
                     }
                     else
                     {
-                        if (hysteriaEntity.IsValid())
+                        if (forcedMarchEntity.IsValid())
+                        {
+                            var forcedMarch = forcedMarchEntity.Get<ForcedMarch.Component>();
+
+                            playerManager.OverrideMovement = PlayerMovementOverride.OverrideMovementState.ForceMovementWorldDirection;
+                            playerManager.OverrideMovementWorldDirection = forcedMarch.MoveDirection;
+                        }
+                        else if (hysteriaEntity.IsValid())
                         {
                             var hysteria = hysteriaEntity.Get<Hysteria.Component>();
 

@@ -14,12 +14,12 @@ namespace ECommons.Hooks;
 
 public static unsafe class MapEffect
 {
-    public const string Sig = "48 89 5C 24 ?? 48 89 6C 24 ?? 48 89 74 24 ?? 57 48 83 EC 20 8B FA 41 0F B7 E8";
+    public const string Sig = "48 89 5C 24 ?? 48 89 6C 24 ?? 48 89 74 24 ?? 57 48 83 EC ?? 8B FA 41 0F B7 E8";
     public const string ExsMultisig = "40 55 41 57 48 83 EC ?? 48 83 B9";
 
-    public delegate long ProcessMapEffect(long a1, uint a2, ushort a3, ushort a4);
+    public delegate void ProcessMapEffect(ContentDirector* director, uint position, ushort param1, ushort param2);
     internal static Hook<ProcessMapEffect> ProcessMapEffectHook = null;
-    private static Action<long, uint, ushort, ushort> Callback = null;
+    private static Action<nint, uint, ushort, ushort> Callback = null;
     private static ProcessMapEffect OriginalDelegate;
 
     private static class Ex
@@ -111,21 +111,21 @@ public static unsafe class MapEffect
 
     private static ILogger Logger;
 
-    internal static long ProcessMapEffectDetour(long a1, uint a2, ushort a3, ushort a4)
+    internal static void ProcessMapEffectDetour(ContentDirector* director, uint position, ushort param1, ushort param2)
     {
         try
         {
-            Callback(a1, a2, a3, a4);
+            Callback((nint)director, position, param1, param2);
         }
         catch(Exception e)
         {
             Logger?.Error(e.ToStringFull());
         }
-        return ProcessMapEffectHook.Original(a1, a2, a3, a4);
+        ProcessMapEffectHook.Original(director, position, param1, param2);
     }
 
     public static void Init(ISigScanner sigScanner, IGameInteropProvider hook, ILogger logger,
-        Action<long, uint, ushort, ushort> fullParamsCallback)
+        Action<nint, uint, ushort, ushort> fullParamsCallback)
     {
         if(ProcessMapEffectHook != null)
         {
