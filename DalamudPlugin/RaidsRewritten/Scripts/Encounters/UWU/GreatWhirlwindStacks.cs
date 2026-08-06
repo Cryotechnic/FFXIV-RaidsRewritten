@@ -104,13 +104,13 @@ public class GreatWhirlwindStacks : Mechanic
 
         ClearOmens();
 
-        var whirlwindCircle = World.Entity()
-            .Set(new StaticVfx("vfx/omen/eff/tatumaki0m.avfx"))
-            .Set(new Position(zoneCenter))
-            .Set(new Rotation(0f))
-            .Set(new Scale(new Vector3(WhirlwindRadius)))
-            .Add<Omen>();
-        activeOmens.Add(whirlwindCircle);
+        // var whirlwindCircle = World.Entity()
+        //     .Set(new StaticVfx("vfx/omen/eff/tatumaki0m.avfx"))
+        //     .Set(new Position(zoneCenter))
+        //     .Set(new Rotation(0f))
+        //     .Set(new Scale(new Vector3(WhirlwindRadius)))
+        //     .Add<Omen>();
+        // activeOmens.Add(whirlwindCircle);
 
         for (int i = 0; i < requiredPlayers.Length; i++)
         {
@@ -118,7 +118,7 @@ public class GreatWhirlwindStacks : Mechanic
                 .Set(new StaticVfx(TowerOmenVfxByCount[requiredPlayers[i] - 1]))
                 .Set(new Position(towerPositions[i]))
                 .Set(new Rotation(0f))
-                .Set(new Scale(new Vector3(TowerRadius / TowerVfxNativeRadius)))
+                .Set(new Scale(new Vector3(TowerRadius)))
                 .Add<Omen>();
             activeOmens.Add(towerOmen);
         }
