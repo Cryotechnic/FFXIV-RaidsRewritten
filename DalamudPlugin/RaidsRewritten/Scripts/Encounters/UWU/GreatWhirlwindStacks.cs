@@ -18,15 +18,15 @@ namespace RaidsRewritten.Scripts.Encounters.UWU;
 /// <summary>
 /// On every Great Whirlwind cast, two to four enumeration towers spawn inside the whirlwind zone.
 /// Each party member is assigned a tower by party list index; standing in the wrong tower (or none) fails.
+/// t
 /// </summary>
 public class GreatWhirlwindStacks : Mechanic
 {
     private const float TowerRadius = 3f;
-    private const float TowerVfxNativeRadius = 5f;
-    private const float WhirlwindRadius = 12f;
+    private const float WhirlwindRadius = 7.5f;
     private const float DuplicatePositionTolerance = 0.1f;
     private const long DuplicatePacketWindowMs = 1000;
-    private const float MinimumTowerPuddleGap = 7.5f;
+    private const float MinimumTowerPuddleGap = 6.5f;
     private const int PartySize = 8;
     private const float OmenDuration = 3.5f;
     private const float HysteriaDuration = 10f;
@@ -40,6 +40,18 @@ public class GreatWhirlwindStacks : Mechanic
         "vfx/omen/eff/general_trap_o2x.avfx",
         "vfx/omen/eff/general_trap_o3x.avfx",
         "vfx/omen/eff/general_trap_o4x.avfx",
+    ];
+
+    private static readonly int[][] TowerPlayerCountPatterns =
+    [
+        [4, 4],
+        [4, 3, 1],
+        [4, 2, 2],
+        [3, 3, 2],
+        [4, 2, 1, 1],
+        [3, 3, 1, 1],
+        [3, 2, 2, 1],
+        [2, 2, 2, 2],
     ];
 
     public int RngSeed { get; set; }
@@ -121,18 +133,11 @@ public class GreatWhirlwindStacks : Mechanic
 
     private int[] CreateTowerPlayerCounts()
     {
-        int towerCount = random.Next(2, 5);
-        var requiredPlayers = new int[towerCount];
-        Array.Fill(requiredPlayers, 1);
-        int remainingPlayers = PartySize - towerCount;
-
-        while (remainingPlayers > 0)
+        var requiredPlayers = (int[])TowerPlayerCountPatterns[random.Next(TowerPlayerCountPatterns.Length)].Clone();
+        for (int i = requiredPlayers.Length - 1; i > 0; i--)
         {
-            int tower = random.Next(requiredPlayers.Length);
-            if (requiredPlayers[tower] >= 4) continue;
-
-            requiredPlayers[tower]++;
-            remainingPlayers--;
+            int swapIndex = random.Next(i + 1);
+            (requiredPlayers[i], requiredPlayers[swapIndex]) = (requiredPlayers[swapIndex], requiredPlayers[i]);
         }
 
         return requiredPlayers;
@@ -163,11 +168,11 @@ public class GreatWhirlwindStacks : Mechanic
 
     private static void PlaceEvenlySpacedTowers(Vector3[] towerPositions, Vector3 zoneCenter, float angleOffset)
     {
-        var minimumCenterSeparation = TowerRadius * 2f + MinimumTowerPuddleGap;
         var angleStep = MathF.PI * 2f / towerPositions.Length;
-        var dist = MathF.Min(
-            MathF.Max(MinimumTowerPuddleGap, minimumCenterSeparation / (2f * MathF.Sin(MathF.PI / towerPositions.Length))),
-            WhirlwindRadius - TowerRadius);
+        var dist = WhirlwindRadius - TowerRadius;
+        var adjacentPuddleGap = 2f * dist * MathF.Sin(MathF.PI / towerPositions.Length) - TowerRadius * 2f;
+        if (adjacentPuddleGap < MinimumTowerPuddleGap)
+            System.Diagnostics.Debug.WriteLine($"Great Whirlwind tower gap is only {adjacentPuddleGap:F2} yalms.");
         for (int i = 0; i < towerPositions.Length; i++)
         {
             var angle = i * angleStep + angleOffset;
@@ -251,7 +256,8 @@ public class GreatWhirlwindStacks : Mechanic
         {
             if (!omen.IsValid()) continue;
 
-            omen.Set(new Alpha(0f));
+            if (omen.TryGet<StaticVfx>(out var staticVfx))
+                staticVfx.VfxPtr?.Remove();
             omen.Destruct();
         }
         activeOmens.Clear();
