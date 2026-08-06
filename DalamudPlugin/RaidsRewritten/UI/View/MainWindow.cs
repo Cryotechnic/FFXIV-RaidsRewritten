@@ -20,7 +20,6 @@ using RaidsRewritten.Spawn;
 using RaidsRewritten.UI.Util;
 using RaidsRewritten.Utility;
 using ZLinq;
-using ZLinq;
 
 namespace RaidsRewritten.UI.View;
 
